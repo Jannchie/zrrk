@@ -12,18 +12,25 @@ import (
 )
 
 type Bot struct {
-	RoomID  int
-	cookies string
-	infoURL string
-	conn    *websocket.Conn
-	done    chan struct{}
-	token   string
-	host    string
+	RoomID       int
+	danmakuQueue chan DanmakuData
+	cookies      string
+	infoURL      string
+	conn         *websocket.Conn
+	done         chan struct{}
+	token        string
+	host         string
+	plugins      []BotPlugin
+}
+
+type BotPlugin interface {
+	HandleDanmuData(data DanmakuData) string
 }
 
 func New() *Bot {
 	return &Bot{
-		infoURL: "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=%d&type=0",
+		infoURL:      "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=%d&type=0",
+		danmakuQueue: make(chan DanmakuData, 5),
 	}
 }
 
@@ -31,6 +38,10 @@ func Default(roomID int) *Bot {
 	b := New()
 	b.RoomID = roomID
 	return b
+}
+
+func (b *Bot) AddPlugin(plugin BotPlugin) {
+	b.plugins = append(b.plugins, plugin)
 }
 
 func (b *Bot) SetCookies(cookies string) {
@@ -52,6 +63,17 @@ func (b *Bot) Connect() {
 	go b.recieve()
 	go b.send()
 	b.sendFirstMsg()
+	go func() {
+		for dd := range b.danmakuQueue {
+			for i := range b.plugins {
+				plugin := b.plugins[i]
+				str := plugin.HandleDanmuData(dd)
+				if str != "" {
+					WriteToFile(str)
+				}
+			}
+		}
+	}()
 }
 
 func (b *Bot) makeConnection() {

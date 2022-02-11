@@ -1,5 +1,7 @@
 package zrrk
 
+import "fmt"
+
 type Msg struct {
 	Cmd string `json:"cmd"`
 }
@@ -156,4 +158,25 @@ type OnlineRankV2 struct {
 		} `json:"list"`
 		RankType string `json:"rank_type"`
 	} `json:"data"`
+}
+
+type MedalData struct {
+	Title string `json:"title"`
+	Level int    `json:"level"`
+}
+type UserData struct {
+	UID  int    `json:"uid"`
+	Name string `json:"name"`
+}
+type DanmakuData struct {
+	Medal MedalData `json:"modal"`
+	User  UserData  `json:"user"`
+	Text  string    `json:"text"`
+}
+
+func (d *MedalData) String() string {
+	if d.Level == 0 {
+		return "[无勋章Lv.0] "
+	}
+	return fmt.Sprintf("[%sLv.%d] ", d.Title, d.Level)
 }

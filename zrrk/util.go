@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"errors"
+	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -16,6 +17,12 @@ type BiliHeader struct {
 	OpeaT int32
 	Seque int32
 }
+
+func WriteToFile(msg string) {
+	log.Printf("输出文字: %s", msg)
+	ioutil.WriteFile("../message.txt", []byte(msg), 0644)
+}
+
 
 func GetResponse(targetURL string) (*http.Response, error) {
 	client := &http.Client{}
