@@ -29,7 +29,7 @@ func New() *TodayRPPlugin {
 
 func (p *TodayRPPlugin) HandleDanmuData(data zrrk.DanmakuData) string {
 	if !strings.Contains(data.Text, "06") {
-		return ""	
+		return ""
 	}
 	if !(strings.Contains(data.Text, "RP") || strings.Contains(data.Text, "rp") || strings.Contains(data.Text, "人品")) {
 		return ""

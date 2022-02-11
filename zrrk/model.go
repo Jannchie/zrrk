@@ -176,7 +176,7 @@ type DanmakuData struct {
 
 func (d *MedalData) String() string {
 	if d.Level == 0 {
-		return "[无勋章Lv.0] "
+		return "[无勋章Lv. 0] "
 	}
-	return fmt.Sprintf("[%sLv.%d] ", d.Title, d.Level)
+	return fmt.Sprintf("[%sLv.%2d] ", d.Title, d.Level)
 }

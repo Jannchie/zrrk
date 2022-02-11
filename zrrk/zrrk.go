@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/gorilla/websocket"
 )
 
@@ -49,10 +50,14 @@ func (b *Bot) SetCookies(cookies string) {
 }
 
 func (b *Bot) Connect() {
+	color.Set(color.FgHiBlack)
 	log.Println("尝试接续直播间弹幕服务器")
+	color.Unset()
 	info, err := b.getDanmakuInfo()
 	if err != nil {
+		color.Set(color.FgHiRed)
 		log.Fatal("获取弹幕服务器信息失败: ", err)
+		color.Unset()
 	}
 	b.setHostAndToken(info)
 	b.makeConnection()
@@ -74,6 +79,7 @@ func (b *Bot) Connect() {
 			}
 		}
 	}()
+	color.Unset()
 }
 
 func (b *Bot) makeConnection() {
@@ -90,7 +96,9 @@ func (b *Bot) setHostAndToken(info *DanmakuInfoResp) {
 }
 
 func (b *Bot) sendFirstMsg() {
+	color.Set(color.FgHiBlack)
 	log.Println("准备进行初次接触")
+	color.Unset()
 	data := map[string]interface{}{
 		"key":      b.token,
 		"protover": 2,
@@ -105,9 +113,13 @@ func (b *Bot) sendFirstMsg() {
 	buffer.Write(body)
 	err := b.conn.WriteMessage(websocket.BinaryMessage, buffer.Bytes())
 	if err != nil {
+		color.Set(color.FgRed)
 		log.Println("初次接触失败: ", err)
+		color.Unset()
 	}
+	color.Set(color.FgHiBlack)
 	log.Println("成功发送初次接触包")
+	color.Unset()
 }
 
 func (b *Bot) sendHeartbeat() {
@@ -117,15 +129,21 @@ func (b *Bot) sendHeartbeat() {
 	buffer.Write([]byte(obj))
 	err := b.conn.WriteMessage(websocket.BinaryMessage, buffer.Bytes())
 	if err != nil {
+		color.Set(color.FgRed)
 		log.Println("发送心跳包失败:", err)
+		color.Unset()
 	}
+	color.Set(color.FgGreen)
 	log.Println("成功发送心跳包")
+	color.Unset()
 }
 
 func (b *Bot) send() {
 	interrupt := make(chan os.Signal, 1)
 	ticker := time.NewTicker(time.Second * 30)
+	color.Set(color.FgHiBlack)
 	log.Println("发送协程已启动")
+	color.Unset()
 	for {
 		select {
 		case <-b.done:
@@ -156,7 +174,9 @@ func (b *Bot) doInterrupt() bool {
 }
 
 func (b *Bot) recieve() {
+	color.Set(color.FgHiBlack)
 	log.Println("接收协程已启动")
+	color.Unset()
 	defer close(b.done)
 	for {
 		_, message, err := b.conn.ReadMessage()
@@ -171,7 +191,9 @@ func (b *Bot) recieve() {
 		case 3:
 			data := rawBody[:4]
 			value := btoi32(data)
+			color.Set(color.FgYellow)
 			log.Printf("当前直播间热度: %d\n", value)
+			color.Unset()
 		case 5:
 			if head.BodyV == WS_BODY_PROTOCOL_VERSION_DEFLATE {
 				body := ZlibParse(rawBody)
@@ -213,7 +235,9 @@ func (b *Bot) recieve() {
 				// log.Println("消息包解析结束")
 			}
 		case 8:
+			color.Set(color.FgGreen)
 			log.Printf("初次接触成功\n")
+			color.Unset()
 		default:
 			log.Printf("未知消息: %s\n", rawBody)
 			// log.Printf("recv: %+v %s\n", head, rawBody)
@@ -251,7 +275,9 @@ func newFunction(curBody []byte) string {
 }
 
 func (b *Bot) getDanmakuInfo() (*DanmakuInfoResp, error) {
+	color.Set(color.FgHiBlack)
 	log.Println("已发起弹幕池信息请求")
+	color.Unset()
 	resp, err := GetResponse(fmt.Sprintf(b.infoURL, b.RoomID))
 	if err != nil {
 		return nil, err
@@ -261,6 +287,8 @@ func (b *Bot) getDanmakuInfo() (*DanmakuInfoResp, error) {
 	if err2 != nil {
 		return nil, err
 	}
+	color.Set(color.FgGreen)
 	log.Println("弹幕池信息检索成功")
+	color.Unset()
 	return &danmakuInfoResp, nil
 }

@@ -7,17 +7,23 @@ import (
 	"github.com/fatih/color"
 )
 
-
 func (b *Bot) HandleInteractWord(msg InteractWord) {
-	color.Set(color.FgYellow)
-	m := fmt.Sprintf("%s(UID:%d) 进入了直播间", msg.Data.Uname, msg.Data.UID)
+	color.Set(color.FgBlack)
+
+	level := msg.Data.FansMedal.MedalLevel
+	medalTitle := msg.Data.FansMedal.MedalName
+	md := MedalData{
+		Level: level,
+		Title: medalTitle,
+	}
+	m := fmt.Sprintf("%s%s(UID:%9d) 进入了直播间", md.String(), msg.Data.Uname, msg.Data.UID)
 	log.Println(m)
 	color.Unset()
 }
 
 func (b *Bot) HandleSendGift(msg SendGift) {
-	color.Set(color.FgRed)
-	m := fmt.Sprintf("%s(UID:%d) %s了 %d 个 %s", msg.Data.Uname, msg.Data.UID, msg.Data.Action, msg.Data.Num, msg.Data.GiftName)
+	color.Set(color.FgCyan)
+	m := fmt.Sprintf("%s(UID:%9d) %s了 %d 个 %s", msg.Data.Uname, msg.Data.UID, msg.Data.Action, msg.Data.Num, msg.Data.GiftName)
 	log.Println(m)
 	color.Unset()
 }
