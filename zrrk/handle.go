@@ -28,8 +28,12 @@ func (b *Bot) HandleInteractWord(msg InteractWord) {
 }
 
 func (b *Bot) HandleSendGift(msg SendGift) {
+	md := MedalData{
+		Title: msg.Data.MedalInfo.MedalName,
+		Level: msg.Data.MedalInfo.MedalLevel,
+	}
 	color.Set(color.FgCyan)
-	m := fmt.Sprintf("%s(UID:%9d) %s了 %d 个 %s", msg.Data.Uname, msg.Data.UID, msg.Data.Action, msg.Data.Num, msg.Data.GiftName)
+	m := fmt.Sprintf("%s %s(UID:%9d) %s了 %d 个 %s",md.String(), msg.Data.Uname, msg.Data.UID, msg.Data.Action, msg.Data.Num, msg.Data.GiftName)
 	log.Println(m)
 	color.Unset()
 }
