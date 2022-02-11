@@ -218,6 +218,23 @@ func (b *Bot) recieve() {
 						// 进入特效
 					case "COMBO_SEND":
 						// 送礼连击
+					case "LIVE":
+						// 开始直播
+						color.Set(color.FgYellow)
+						log.Println("开始直播")
+						color.Unset()
+					case "PREPARING":
+						color.Set(color.FgYellow)
+						log.Println("直播间准备中")
+						color.Unset()
+						// 下播
+					case "ONLINE_RANK_TOP3":
+						// 高能榜变动
+					case "ROOM_CHANGE":
+						// 修改房间信息
+						color.Set(color.FgYellow)
+						log.Println("检测到修改房间信息")
+						color.Unset()
 					case "DANMU_MSG":
 						b.handleDanmuMsg(curBody)
 					case "SEND_GIFT":

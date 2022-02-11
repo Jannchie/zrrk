@@ -103,6 +103,47 @@ type EntryEffect struct {
 	} `json:"data"`
 }
 
+type OnlineRankTop3 struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		Dmscore int `json:"dmscore"`
+		List    []struct {
+			Msg  string `json:"msg"`
+			Rank int    `json:"rank"`
+		} `json:"list"`
+	} `json:"data"`
+}
+
+type Preparing struct {
+	Cmd    string `json:"cmd"`
+	Round  int    `json:"round"`
+	Roomid string `json:"roomid"`
+}
+
+type RoomChange struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		Title          string `json:"title"`
+		AreaID         int    `json:"area_id"`
+		ParentAreaID   int    `json:"parent_area_id"`
+		AreaName       string `json:"area_name"`
+		ParentAreaName string `json:"parent_area_name"`
+		LiveKey        string `json:"live_key"`
+		SubSessionKey  string `json:"sub_session_key"`
+	} `json:"data"`
+}
+
+type Live struct {
+	Cmd             string `json:"cmd"`
+	LiveKey         string `json:"live_key"`
+	VoiceBackground string `json:"voice_background"`
+	SubSessionKey   string `json:"sub_session_key"`
+	LivePlatform    string `json:"live_platform"`
+	LiveModel       int    `json:"live_model"`
+	LiveTime        int    `json:"live_time"`
+	Roomid          int    `json:"roomid"`
+}
+
 type InteractWord struct {
 	Cmd  string `json:"cmd"`
 	Data struct {
