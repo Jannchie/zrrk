@@ -8,15 +8,21 @@ import (
 )
 
 func (b *Bot) HandleInteractWord(msg InteractWord) {
-	color.Set(color.FgBlack)
-
 	level := msg.Data.FansMedal.MedalLevel
 	medalTitle := msg.Data.FansMedal.MedalName
 	md := MedalData{
 		Level: level,
 		Title: medalTitle,
 	}
-	m := fmt.Sprintf("%s%s(UID:%9d) 进入了直播间", md.String(), msg.Data.Uname, msg.Data.UID)
+	var m string
+	switch msg.Data.MsgType {
+	case 1:
+		color.Set(color.FgBlack)
+		m = fmt.Sprintf("%s %s(UID:%9d) 进入了直播间", md.String(), msg.Data.Uname, msg.Data.UID)
+	case 2:
+		color.Set(color.FgMagenta)
+		m = fmt.Sprintf("%s %s(UID:%9d) 关注了主播", md.String(), msg.Data.Uname, msg.Data.UID)
+	}
 	log.Println(m)
 	color.Unset()
 }
@@ -46,11 +52,27 @@ func (b *Bot) HandleDanmuMsg(msg DanmuMsg) {
 		medalData.Level = lv
 		medalData.Title = modalTitle
 	}
-	m := fmt.Sprintf("%s%s(UID:%d): %s", medalData.String(), uname, uid, text)
+	m := fmt.Sprintf("%s %s(UID:%d): %s", medalData.String(), uname, uid, text)
 	b.danmakuQueue <- DanmakuData{
 		Medal: medalData,
 		User:  user,
 		Text:  text,
 	}
 	log.Println(m)
+}
+
+func (b *Bot) handleSC(msg SuperChatMessage) {
+	md := MedalData{
+		Level: msg.Data.MedalInfo.MedalLevel,
+		Title: msg.Data.MedalInfo.MedalName,
+	}
+	ud := UserData{
+		Name: msg.Data.UserInfo.Uname,
+		UID:  msg.Data.UID,
+	}
+	b.danmakuQueue <- DanmakuData{
+		Medal: md,
+		User:  ud,
+		SC:    true,
+	}
 }

@@ -9,7 +9,7 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags)
-	bot := zrrk.Default(422915)
+	bot := zrrk.Default(22907643)
 	bot.AddPlugin(todayrp.New())
 	bot.Connect()
 	done := make(chan struct{})

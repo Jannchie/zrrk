@@ -50,6 +50,8 @@ func (b *Bot) SetCookies(cookies string) {
 }
 
 func (b *Bot) Connect() {
+	color.Set(color.FgBlue)
+	log.Println("ZRRK 开始运行")
 	color.Set(color.FgHiBlack)
 	log.Println("尝试接续直播间弹幕服务器")
 	color.Unset()
@@ -237,6 +239,23 @@ func (b *Bot) recieve() {
 						color.Unset()
 					case "DANMU_MSG":
 						b.handleDanmuMsg(curBody)
+					case "SUPER_CHAT_MESSAGE":
+						// SC
+						var msg SuperChatMessage
+						_ = json.Unmarshal(curBody, &msg)
+						b.handleSC(msg)
+					case "SUPER_CHAT_MESSAGE_JPN":
+						// SC JPN
+					case "ANCHOR_LOT_END":
+						// 抽奖结束
+						color.Set(color.FgYellow)
+						log.Println("检测到抽奖结束")
+						color.Unset()
+					case "ANCHOR_LOT_AWARD":
+						// 抽奖结果
+						color.Set(color.FgYellow)
+						log.Println("检测到抽奖结果")
+						color.Unset()
 					case "SEND_GIFT":
 						var msg SendGift
 						_ = json.Unmarshal(curBody, &msg)

@@ -1,6 +1,9 @@
 package zrrk
 
-import "fmt"
+import (
+	"fmt"
+	"unicode"
+)
 
 type Msg struct {
 	Cmd string `json:"cmd"`
@@ -213,11 +216,147 @@ type DanmakuData struct {
 	Medal MedalData `json:"modal"`
 	User  UserData  `json:"user"`
 	Text  string    `json:"text"`
+	SC    bool      `json:"sc"`
+}
+
+type SuperChatMessageJPN struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		ID                    string `json:"id"`
+		UID                   string `json:"uid"`
+		Price                 int    `json:"price"`
+		Rate                  int    `json:"rate"`
+		Message               string `json:"message"`
+		MessageJpn            string `json:"message_jpn"`
+		IsRanked              int    `json:"is_ranked"`
+		BackgroundImage       string `json:"background_image"`
+		BackgroundColor       string `json:"background_color"`
+		BackgroundIcon        string `json:"background_icon"`
+		BackgroundPriceColor  string `json:"background_price_color"`
+		BackgroundBottomColor string `json:"background_bottom_color"`
+		Ts                    int    `json:"ts"`
+		Token                 string `json:"token"`
+		MedalInfo             struct {
+			IconID       int    `json:"icon_id"`
+			TargetID     int    `json:"target_id"`
+			Special      string `json:"special"`
+			AnchorUname  string `json:"anchor_uname"`
+			AnchorRoomid int    `json:"anchor_roomid"`
+			MedalLevel   int    `json:"medal_level"`
+			MedalName    string `json:"medal_name"`
+			MedalColor   string `json:"medal_color"`
+		} `json:"medal_info"`
+		UserInfo struct {
+			Uname      string `json:"uname"`
+			Face       string `json:"face"`
+			FaceFrame  string `json:"face_frame"`
+			GuardLevel int    `json:"guard_level"`
+			UserLevel  int    `json:"user_level"`
+			LevelColor string `json:"level_color"`
+			IsVip      int    `json:"is_vip"`
+			IsSvip     int    `json:"is_svip"`
+			IsMainVip  int    `json:"is_main_vip"`
+			Title      string `json:"title"`
+			Manager    int    `json:"manager"`
+		} `json:"user_info"`
+		Time      int `json:"time"`
+		StartTime int `json:"start_time"`
+		EndTime   int `json:"end_time"`
+		Gift      struct {
+			Num      int    `json:"num"`
+			GiftID   int    `json:"gift_id"`
+			GiftName string `json:"gift_name"`
+		} `json:"gift"`
+	} `json:"data"`
+	Roomid string `json:"roomid"`
+}
+
+type SuperChatMessage struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		BackgroundBottomColor string  `json:"background_bottom_color"`
+		BackgroundColor       string  `json:"background_color"`
+		BackgroundColorEnd    string  `json:"background_color_end"`
+		BackgroundColorStart  string  `json:"background_color_start"`
+		BackgroundIcon        string  `json:"background_icon"`
+		BackgroundImage       string  `json:"background_image"`
+		BackgroundPriceColor  string  `json:"background_price_color"`
+		ColorPoint            float64 `json:"color_point"`
+		Dmscore               int     `json:"dmscore"`
+		EndTime               int     `json:"end_time"`
+		Gift                  struct {
+			GiftID   int    `json:"gift_id"`
+			GiftName string `json:"gift_name"`
+			Num      int    `json:"num"`
+		} `json:"gift"`
+		ID          int `json:"id"`
+		IsRanked    int `json:"is_ranked"`
+		IsSendAudit int `json:"is_send_audit"`
+		MedalInfo   struct {
+			AnchorRoomid     int    `json:"anchor_roomid"`
+			AnchorUname      string `json:"anchor_uname"`
+			GuardLevel       int    `json:"guard_level"`
+			IconID           int    `json:"icon_id"`
+			IsLighted        int    `json:"is_lighted"`
+			MedalColor       string `json:"medal_color"`
+			MedalColorBorder int    `json:"medal_color_border"`
+			MedalColorEnd    int    `json:"medal_color_end"`
+			MedalColorStart  int    `json:"medal_color_start"`
+			MedalLevel       int    `json:"medal_level"`
+			MedalName        string `json:"medal_name"`
+			Special          string `json:"special"`
+			TargetID         int    `json:"target_id"`
+		} `json:"medal_info"`
+		Message          string `json:"message"`
+		MessageFontColor string `json:"message_font_color"`
+		MessageTrans     string `json:"message_trans"`
+		Price            int    `json:"price"`
+		Rate             int    `json:"rate"`
+		StartTime        int    `json:"start_time"`
+		Time             int    `json:"time"`
+		Token            string `json:"token"`
+		TransMark        int    `json:"trans_mark"`
+		Ts               int    `json:"ts"`
+		UID              int    `json:"uid"`
+		UserInfo         struct {
+			Face       string `json:"face"`
+			FaceFrame  string `json:"face_frame"`
+			GuardLevel int    `json:"guard_level"`
+			IsMainVip  int    `json:"is_main_vip"`
+			IsSvip     int    `json:"is_svip"`
+			IsVip      int    `json:"is_vip"`
+			LevelColor string `json:"level_color"`
+			Manager    int    `json:"manager"`
+			NameColor  string `json:"name_color"`
+			Title      string `json:"title"`
+			Uname      string `json:"uname"`
+			UserLevel  int    `json:"user_level"`
+		} `json:"user_info"`
+	} `json:"data"`
+	Roomid int `json:"roomid"`
+}
+
+func getStringWidth(str string) int {
+	var ans int
+	for _, c := range str {
+		if unicode.IsLower(c) || unicode.IsUpper(c) || unicode.IsDigit(c) || unicode.IsPunct(c) {
+			ans += 1
+		} else {
+			ans += 2
+		}
+	}
+	return ans
 }
 
 func (d *MedalData) String() string {
 	if d.Level == 0 {
-		return "[无勋章Lv. 0] "
+		return "[            ]"
 	}
-	return fmt.Sprintf("[%sLv.%2d] ", d.Title, d.Level)
+	length := getStringWidth(d.Title)
+	space := ""
+
+	for i := 0; i < 6-length; i++ {
+		space += " "
+	}
+	return fmt.Sprintf("[%s%s Lv.%2d]", d.Title, space, d.Level)
 }
