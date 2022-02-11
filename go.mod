@@ -1,4 +1,4 @@
-module jannchie.com/zeroroku
+module jannchie.com/zrrk
 
 go 1.17
 
