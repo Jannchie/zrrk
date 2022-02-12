@@ -13,25 +13,28 @@ import (
 )
 
 type Bot struct {
-	RoomID       int
-	danmakuQueue chan DanmakuData
-	cookies      string
-	infoURL      string
-	conn         *websocket.Conn
-	done         chan struct{}
-	token        string
-	host         string
-	plugins      []BotPlugin
+	RoomID     int
+	dataChan   chan interface{}
+	cookies    string
+	infoURL    string
+	conn       *websocket.Conn
+	done       chan struct{}
+	token      string
+	host       string
+	plugins    []BotPlugin
+	outputChan chan string
 }
 
 type BotPlugin interface {
-	HandleDanmuData(data DanmakuData) string
+	HandleData(data interface{}, channel chan<- string)
+	SetRoom(id int)
 }
 
 func New() *Bot {
 	return &Bot{
-		infoURL:      "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=%d&type=0",
-		danmakuQueue: make(chan DanmakuData, 5),
+		infoURL:    "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=%d&type=0",
+		dataChan:   make(chan interface{}, 100),
+		outputChan: make(chan string, 100),
 	}
 }
 
@@ -42,6 +45,7 @@ func Default(roomID int) *Bot {
 }
 
 func (b *Bot) AddPlugin(plugin BotPlugin) {
+	plugin.SetRoom(b.RoomID)
 	b.plugins = append(b.plugins, plugin)
 }
 
@@ -51,14 +55,14 @@ func (b *Bot) SetCookies(cookies string) {
 
 func (b *Bot) Connect() {
 	color.Set(color.FgBlue)
-	log.Println("ZRRK 开始运行")
+	log.Println("ZRRK已开始运行")
 	color.Set(color.FgHiBlack)
-	log.Println("尝试接续直播间弹幕服务器")
+	log.Println("尝试接续直播间")
 	color.Unset()
 	info, err := b.getDanmakuInfo()
 	if err != nil {
 		color.Set(color.FgHiRed)
-		log.Fatal("获取弹幕服务器信息失败: ", err)
+		log.Fatal("无法获取到信息: ", err)
 		color.Unset()
 	}
 	b.setHostAndToken(info)
@@ -71,14 +75,18 @@ func (b *Bot) Connect() {
 	go b.send()
 	b.sendFirstMsg()
 	go func() {
-		for dd := range b.danmakuQueue {
+		for dd := range b.dataChan {
 			for i := range b.plugins {
 				plugin := b.plugins[i]
-				str := plugin.HandleDanmuData(dd)
-				if str != "" {
-					WriteToFile(str)
-				}
+				plugin.HandleData(dd, b.outputChan)
 			}
+		}
+	}()
+	go func() {
+		for msg := range b.outputChan {
+			log.Println(msg)
+			WriteToFile(msg)
+			time.Sleep(time.Second * 5)
 		}
 	}()
 	color.Unset()
@@ -99,7 +107,7 @@ func (b *Bot) setHostAndToken(info *DanmakuInfoResp) {
 
 func (b *Bot) sendFirstMsg() {
 	color.Set(color.FgHiBlack)
-	log.Println("准备进行初次接触")
+	log.Println("将进行初次接触")
 	color.Unset()
 	data := map[string]interface{}{
 		"key":      b.token,
@@ -116,11 +124,11 @@ func (b *Bot) sendFirstMsg() {
 	err := b.conn.WriteMessage(websocket.BinaryMessage, buffer.Bytes())
 	if err != nil {
 		color.Set(color.FgRed)
-		log.Println("初次接触失败: ", err)
+		log.Println("初次接触未成功: ", err)
 		color.Unset()
 	}
 	color.Set(color.FgHiBlack)
-	log.Println("成功发送初次接触包")
+	log.Println("发送初次接触包")
 	color.Unset()
 }
 
@@ -223,11 +231,11 @@ func (b *Bot) recieve() {
 					case "LIVE":
 						// 开始直播
 						color.Set(color.FgYellow)
-						log.Println("开始直播")
+						log.Println("现在已开始直播")
 						color.Unset()
 					case "PREPARING":
 						color.Set(color.FgYellow)
-						log.Println("直播间准备中")
+						log.Println("直播间正准备中")
 						color.Unset()
 						// 下播
 					case "ONLINE_RANK_TOP3":
@@ -235,8 +243,14 @@ func (b *Bot) recieve() {
 					case "ROOM_CHANGE":
 						// 修改房间信息
 						color.Set(color.FgYellow)
-						log.Println("检测到修改房间信息")
+						log.Println("修改了房间信息")
 						color.Unset()
+					case "GUARD_BUY":
+						// 购买舰长
+					case "USER_TOAST_MSG":
+						// 自动续费舰长之类的
+					case "NOTICE_MSG":
+						// 跑马灯
 					case "DANMU_MSG":
 						b.handleDanmuMsg(curBody)
 					case "SUPER_CHAT_MESSAGE":
@@ -272,7 +286,7 @@ func (b *Bot) recieve() {
 			}
 		case 8:
 			color.Set(color.FgGreen)
-			log.Printf("初次接触成功\n")
+			log.Printf("初次接触已成功\n")
 			color.Unset()
 		default:
 			log.Printf("未知消息: %s\n", rawBody)
@@ -312,7 +326,7 @@ func newFunction(curBody []byte) string {
 
 func (b *Bot) getDanmakuInfo() (*DanmakuInfoResp, error) {
 	color.Set(color.FgHiBlack)
-	log.Println("已发起弹幕池信息请求")
+	log.Println("弹幕池情报请求")
 	color.Unset()
 	resp, err := GetResponse(fmt.Sprintf(b.infoURL, b.RoomID))
 	if err != nil {
@@ -324,7 +338,7 @@ func (b *Bot) getDanmakuInfo() (*DanmakuInfoResp, error) {
 		return nil, err
 	}
 	color.Set(color.FgGreen)
-	log.Println("弹幕池信息检索成功")
+	log.Println("连接情报已确保")
 	color.Unset()
 	return &danmakuInfoResp, nil
 }

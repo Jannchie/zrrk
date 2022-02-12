@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
+	"unicode"
 )
 
 type BiliHeader struct {
@@ -23,6 +25,24 @@ func WriteToFile(msg string) {
 	ioutil.WriteFile("../message.txt", []byte(msg), 0644)
 }
 
+func getStringWidth(str string) int {
+	var ans int
+	for _, c := range str {
+		if unicode.IsLower(c) || unicode.IsUpper(c) || unicode.IsDigit(c) || unicode.IsPunct(c) {
+			ans += 1
+		} else {
+			ans += 2
+		}
+	}
+	return ans
+}
+
+func IsSameDay(t time.Time) bool {
+	yp, mp, dp := time.Unix(t.Unix(), 0).Date()
+	y, m, d := time.Unix(time.Now().Unix(), 0).Date()
+	isSameDay := yp == y && m == mp && d == dp
+	return isSameDay
+}
 
 func GetResponse(targetURL string) (*http.Response, error) {
 	client := &http.Client{}

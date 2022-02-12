@@ -20,39 +20,68 @@ type TodayRP struct {
 	CreatedAt time.Time `gorm:"index"`
 }
 
-type TodayRPPlugin struct{}
+type TodayRPPlugin struct {
+	RoomID int
+}
 
 func New() *TodayRPPlugin {
+	DB, _ = gorm.Open(sqlite.Open("./test.db"), &gorm.Config{})
+	DB.AutoMigrate(&TodayRP{})
 	p := TodayRPPlugin{}
 	return &p
 }
 
-func (p *TodayRPPlugin) HandleDanmuData(data zrrk.DanmakuData) string {
-	if !strings.Contains(data.Text, "06") {
-		return ""
+func (p *TodayRPPlugin) SetRoom(id int) {
+	p.RoomID = id
+}
+func (p *TodayRPPlugin) HandleData(input interface{}, channel chan<- string) {
+	data, ok := input.(zrrk.DanmakuData)
+	if !ok {
+		return
 	}
-	if !(strings.Contains(data.Text, "RP") || strings.Contains(data.Text, "rp") || strings.Contains(data.Text, "人品")) {
-		return ""
+	if !strings.Contains(data.Text, "06") {
+		return
+	}
+	if !(strings.Contains(data.Text, "RP") ||
+		strings.Contains(data.Text, "rp") ||
+		strings.Contains(data.Text, "人品") ||
+		strings.Contains(data.Text, "运")) {
+		return
 	}
 	if data.User.UID == 0 {
-		return ""
+		return
 	}
 	var rp TodayRP
 	_ = DB.Find(&rp, "uid = ?", data.User.UID)
-	yp, mp, dp := time.Unix(rp.CreatedAt.Unix(), 0).Date()
-	y, m, d := time.Unix(time.Now().Unix(), 0).Date()
-	if yp == y && m == mp && d == dp {
-		msg := fmt.Sprintf("%s今天已经测过，今天的RP为%d。", data.User.Name, rp.RP)
-		return msg
+	isSameDay := zrrk.IsSameDay(rp.CreatedAt)
+	if isSameDay {
+		msg := fmt.Sprintf("%s今天已经测过，今天的运势是%d · %s。", data.User.Name, rp.RP, getRPLevel(rp.RP))
+		channel <- msg
+		return
 	}
 	rp.UID = data.User.UID
 	rp.RP = int(rand.NormFloat64()*50 + 50)
 	DB.Save(&rp)
-	msg := fmt.Sprintf("%s今天的RP是%d。", data.User.Name, rp.RP)
-	return msg
+	msg := fmt.Sprintf("%s今天的运势是%d · %s。", data.User.Name, rp.RP, getRPLevel(rp.RP))
+	channel <- msg
 }
 
-func init() {
-	DB, _ = gorm.Open(sqlite.Open("./test.db"), &gorm.Config{})
-	DB.AutoMigrate(&TodayRP{})
+func getRPLevel(rp int) string {
+	switch {
+	case rp <= 0:
+		return "大凶"
+	case 0 < rp && rp <= 50:
+		return "凶"
+	case 50 < rp && rp <= 60:
+		return "末吉"
+	case 60 < rp && rp <= 70:
+		return "吉"
+	case 70 < rp && rp <= 80:
+		return "小吉"
+	case 80 < rp && rp < 90:
+		return "中吉"
+	case 90 < rp && rp < 100:
+		return "中吉"
+	}
+	return "大吉"
 }

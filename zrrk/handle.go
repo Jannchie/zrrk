@@ -16,14 +16,22 @@ func (b *Bot) HandleInteractWord(msg InteractWord) {
 	}
 	var m string
 	switch msg.Data.MsgType {
-	case 1:
+	case INTERACT_ENTER:
 		color.Set(color.FgBlack)
-		m = fmt.Sprintf("%s %s(UID:%9d) 进入了直播间", md.String(), msg.Data.Uname, msg.Data.UID)
-	case 2:
+		m = fmt.Sprintf("%s %s(UID: %10d) 进入了直播间", md.String(), msg.Data.Uname, msg.Data.UID)
+	case INTERACT_FOLLOW:
 		color.Set(color.FgMagenta)
-		m = fmt.Sprintf("%s %s(UID:%9d) 关注了主播", md.String(), msg.Data.Uname, msg.Data.UID)
+		m = fmt.Sprintf("%s %s(UID: %10d) 关注了主播", md.String(), msg.Data.Uname, msg.Data.UID)
 	}
 	log.Println(m)
+	b.dataChan <- InteractData{
+		User: UserData{
+			Name:  msg.Data.Uname,
+			UID:   msg.Data.UID,
+			Medal: md,
+		},
+		Type: msg.Data.MsgType,
+	}
 	color.Unset()
 }
 
@@ -33,7 +41,7 @@ func (b *Bot) HandleSendGift(msg SendGift) {
 		Level: msg.Data.MedalInfo.MedalLevel,
 	}
 	color.Set(color.FgCyan)
-	m := fmt.Sprintf("%s %s(UID:%9d) %s了 %d 个 %s",md.String(), msg.Data.Uname, msg.Data.UID, msg.Data.Action, msg.Data.Num, msg.Data.GiftName)
+	m := fmt.Sprintf("%s %s(UID: %10d) %s了 %d 个 %s", md.String(), msg.Data.Uname, msg.Data.UID, msg.Data.Action, msg.Data.Num, msg.Data.GiftName)
 	log.Println(m)
 	color.Unset()
 }
@@ -46,8 +54,9 @@ func (b *Bot) HandleDanmuMsg(msg DanmuMsg) {
 	medal := msg.Info[3].([]interface{})
 	medalData := MedalData{}
 	user := UserData{
-		Name: uname,
-		UID:  uid,
+		Name:  uname,
+		UID:   uid,
+		Medal: medalData,
 	}
 	if len(medal) != 0 {
 		lv := int(medal[0].(float64))
@@ -57,10 +66,9 @@ func (b *Bot) HandleDanmuMsg(msg DanmuMsg) {
 		medalData.Title = modalTitle
 	}
 	m := fmt.Sprintf("%s %s(UID:%d): %s", medalData.String(), uname, uid, text)
-	b.danmakuQueue <- DanmakuData{
-		Medal: medalData,
-		User:  user,
-		Text:  text,
+	b.dataChan <- DanmakuData{
+		User: user,
+		Text: text,
 	}
 	log.Println(m)
 }
@@ -71,12 +79,12 @@ func (b *Bot) handleSC(msg SuperChatMessage) {
 		Title: msg.Data.MedalInfo.MedalName,
 	}
 	ud := UserData{
-		Name: msg.Data.UserInfo.Uname,
-		UID:  msg.Data.UID,
-	}
-	b.danmakuQueue <- DanmakuData{
+		Name:  msg.Data.UserInfo.Uname,
+		UID:   msg.Data.UID,
 		Medal: md,
-		User:  ud,
-		SC:    true,
+	}
+	b.dataChan <- SCData{
+		User: ud,
+		Text: msg.Data.Message,
 	}
 }

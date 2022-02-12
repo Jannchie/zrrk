@@ -20,3 +20,8 @@ const (
 	WS_AUTH_OK                       = 0
 	WS_AUTH_TOKEN_ERROR              = -101
 )
+
+const (
+	INTERACT_ENTER  = 1
+	INTERACT_FOLLOW = 2
+)

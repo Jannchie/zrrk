@@ -2,7 +2,6 @@ package zrrk
 
 import (
 	"fmt"
-	"unicode"
 )
 
 type Msg struct {
@@ -209,16 +208,22 @@ type MedalData struct {
 	Level int    `json:"level"`
 }
 type UserData struct {
-	UID  int    `json:"uid"`
-	Name string `json:"name"`
+	UID   int       `json:"uid"`
+	Name  string    `json:"name"`
+	Medal MedalData `json:"modal"`
 }
 type DanmakuData struct {
-	Medal MedalData `json:"modal"`
-	User  UserData  `json:"user"`
-	Text  string    `json:"text"`
-	SC    bool      `json:"sc"`
+	User UserData `json:"user"`
+	Text string   `json:"text"`
 }
-
+type SCData struct {
+	User UserData `json:"user"`
+	Text string   `json:"text"`
+}
+type InteractData struct {
+	User UserData `json:"user"`
+	Type int      `json:"type"`
+}
 type SuperChatMessageJPN struct {
 	Cmd  string `json:"cmd"`
 	Data struct {
@@ -336,16 +341,92 @@ type SuperChatMessage struct {
 	Roomid int `json:"roomid"`
 }
 
-func getStringWidth(str string) int {
-	var ans int
-	for _, c := range str {
-		if unicode.IsLower(c) || unicode.IsUpper(c) || unicode.IsDigit(c) || unicode.IsPunct(c) {
-			ans += 1
-		} else {
-			ans += 2
-		}
-	}
-	return ans
+type GuardBuy struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		UID        int    `json:"uid"`
+		Username   string `json:"username"`
+		GuardLevel int    `json:"guard_level"`
+		Num        int    `json:"num"`
+		Price      int    `json:"price"`
+		GiftID     int    `json:"gift_id"`
+		GiftName   string `json:"gift_name"`
+		StartTime  int    `json:"start_time"`
+		EndTime    int    `json:"end_time"`
+	} `json:"data"`
+}
+
+type UserToastMsg struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		AnchorShow       bool   `json:"anchor_show"`
+		Color            string `json:"color"`
+		Dmscore          int    `json:"dmscore"`
+		EffectID         int    `json:"effect_id"`
+		EndTime          int    `json:"end_time"`
+		GuardLevel       int    `json:"guard_level"`
+		IsShow           int    `json:"is_show"`
+		Num              int    `json:"num"`
+		OpType           int    `json:"op_type"`
+		PayflowID        string `json:"payflow_id"`
+		Price            int    `json:"price"`
+		RoleName         string `json:"role_name"`
+		StartTime        int    `json:"start_time"`
+		SvgaBlock        int    `json:"svga_block"`
+		TargetGuardCount int    `json:"target_guard_count"`
+		ToastMsg         string `json:"toast_msg"`
+		UID              int    `json:"uid"`
+		Unit             string `json:"unit"`
+		UserShow         bool   `json:"user_show"`
+		Username         string `json:"username"`
+	} `json:"data"`
+}
+
+type NoticeMsg struct {
+	Cmd  string `json:"cmd"`
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Full struct {
+		HeadIcon    string `json:"head_icon"`
+		TailIcon    string `json:"tail_icon"`
+		HeadIconFa  string `json:"head_icon_fa"`
+		TailIconFa  string `json:"tail_icon_fa"`
+		HeadIconFan int    `json:"head_icon_fan"`
+		TailIconFan int    `json:"tail_icon_fan"`
+		Background  string `json:"background"`
+		Color       string `json:"color"`
+		Highlight   string `json:"highlight"`
+		Time        int    `json:"time"`
+	} `json:"full"`
+	Half struct {
+		HeadIcon   string `json:"head_icon"`
+		TailIcon   string `json:"tail_icon"`
+		Background string `json:"background"`
+		Color      string `json:"color"`
+		Highlight  string `json:"highlight"`
+		Time       int    `json:"time"`
+	} `json:"half"`
+	Side struct {
+		HeadIcon   string `json:"head_icon"`
+		Background string `json:"background"`
+		Color      string `json:"color"`
+		Highlight  string `json:"highlight"`
+		Border     string `json:"border"`
+	} `json:"side"`
+	Roomid     int    `json:"roomid"`
+	RealRoomid int    `json:"real_roomid"`
+	MsgCommon  string `json:"msg_common"`
+	MsgSelf    string `json:"msg_self"`
+	LinkURL    string `json:"link_url"`
+	MsgType    int    `json:"msg_type"`
+	ShieldUID  int    `json:"shield_uid"`
+	BusinessID string `json:"business_id"`
+	Scatter    struct {
+		Min int `json:"min"`
+		Max int `json:"max"`
+	} `json:"scatter"`
+	MarqueeID  string `json:"marquee_id"`
+	NoticeType int    `json:"notice_type"`
 }
 
 func (d *MedalData) String() string {
