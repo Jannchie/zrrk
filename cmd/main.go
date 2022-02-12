@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"jannchie.com/zrrk/zrrk"
 	"jannchie.com/zrrk/zrrk/plugin/enterc"
@@ -10,7 +11,8 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags)
-	bot := zrrk.Default(8054378)
+	log.SetOutput(os.Stdout)
+	bot := zrrk.Default(11365)
 	// bot := zrrk.Default(422915)
 	bot.AddPlugin(todayrp.New())
 	bot.AddPlugin(enterc.New())

@@ -13,13 +13,13 @@ var DB *gorm.DB
 
 type EnterCounter struct {
 	UID       int       `gorm:"primaryKey"`
-	RoomID    int       `gorm:"index"`
+	RoomID    int       `gorm:"primaryKey"`
 	CreatedAt time.Time ``
 	Count     int       `gorm:"default:0"`
 }
 type EnterRecord struct {
 	ID        int       `gorm:"primaryKey"`
-	RoomID    int       `gorm:"index"`
+	RoomID    int       `gorm:"primaryKey"`
 	UID       int       ``
 	CreatedAt time.Time ``
 }
@@ -51,22 +51,27 @@ func (p *EnterCounterPlugin) HandleData(input interface{}, channel chan<- string
 	}
 	uid := data.User.UID
 	var enterCounter EnterCounter
-	DB.Debug().Limit(1).Find(&enterCounter, "uid = ? & room_id = ?", uid, p.RoomID)
+	_ = DB.Limit(1).Find(&enterCounter, "uid = ? & room_id = ?", uid, p.RoomID)
 	enterCounter.UID = uid
 	enterCounter.RoomID = p.RoomID
 	switch data.Type {
 	case zrrk.INTERACT_ENTER:
 		enterCounter.Count++
 		if !zrrk.IsSameDay(enterCounter.CreatedAt) {
-			if res := DB.Save(&enterCounter); res.Error != nil {
-				log.Println(res.Error)
+			if enterCounter.Count != 1 {
+				if res := DB.Save(&enterCounter); res.Error != nil {
+					log.Println(res.Error)
+				}
+			} else {
+				if res := DB.Create(&enterCounter); res.Error != nil {
+					log.Println(res.Error)
+				}
 			}
 		} else {
 			log.Println("same day")
 		}
-		DB.Save(&EnterRecord{UID: uid, RoomID: p.RoomID, CreatedAt: time.Now()})
+		DB.Create(&EnterRecord{UID: uid, RoomID: p.RoomID, CreatedAt: time.Now()})
 	case zrrk.INTERACT_FOLLOW:
-		DB.Save(&FollowRecord{UID: uid, RoomID: p.RoomID, CreatedAt: time.Now()})
+		DB.Create(&FollowRecord{UID: uid, RoomID: p.RoomID, CreatedAt: time.Now()})
 	}
 }
-
