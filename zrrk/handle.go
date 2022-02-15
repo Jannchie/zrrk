@@ -10,7 +10,7 @@ import (
 func (b *Bot) HandleInteractWord(msg InteractWord) {
 	level := msg.Data.FansMedal.MedalLevel
 	medalTitle := msg.Data.FansMedal.MedalName
-	md := MedalData{
+	md := Medal{
 		Level: level,
 		Title: medalTitle,
 	}
@@ -25,7 +25,7 @@ func (b *Bot) HandleInteractWord(msg InteractWord) {
 	}
 	log.Println(m)
 	b.dataChan <- InteractData{
-		User: UserData{
+		User: User{
 			Name:  msg.Data.Uname,
 			UID:   msg.Data.UID,
 			Medal: md,
@@ -36,14 +36,28 @@ func (b *Bot) HandleInteractWord(msg InteractWord) {
 }
 
 func (b *Bot) HandleSendGift(msg SendGift) {
-	md := MedalData{
+	md := Medal{
 		Title: msg.Data.MedalInfo.MedalName,
 		Level: msg.Data.MedalInfo.MedalLevel,
+	}
+	ud := User{
+		Name:  msg.Data.Uname,
+		UID:   msg.Data.UID,
+		Medal: md,
 	}
 	color.Set(color.FgCyan)
 	m := fmt.Sprintf("%s %s(UID: %10d) %s了 %d 个 %s", md.String(), msg.Data.Uname, msg.Data.UID, msg.Data.Action, msg.Data.Num, msg.Data.GiftName)
 	log.Println(m)
 	color.Unset()
+	gm := GiftData{
+		User: ud,
+		Gift: Gift{
+			ID:    msg.Data.GiftID,
+			Name:  msg.Data.GiftName,
+			Count: msg.Data.Num,
+		},
+	}
+	b.dataChan <- gm
 }
 
 func (b *Bot) HandleDanmuMsg(msg DanmuMsg) {
@@ -52,8 +66,8 @@ func (b *Bot) HandleDanmuMsg(msg DanmuMsg) {
 	uid := int(userInfo[0].(float64))
 	uname := userInfo[1].(string)
 	medal := msg.Info[3].([]interface{})
-	medalData := MedalData{}
-	user := UserData{
+	medalData := Medal{}
+	user := User{
 		Name:  uname,
 		UID:   uid,
 		Medal: medalData,
@@ -74,11 +88,11 @@ func (b *Bot) HandleDanmuMsg(msg DanmuMsg) {
 }
 
 func (b *Bot) handleSC(msg SuperChatMessage) {
-	md := MedalData{
+	md := Medal{
 		Level: msg.Data.MedalInfo.MedalLevel,
 		Title: msg.Data.MedalInfo.MedalName,
 	}
-	ud := UserData{
+	ud := User{
 		Name:  msg.Data.UserInfo.Uname,
 		UID:   msg.Data.UID,
 		Medal: md,

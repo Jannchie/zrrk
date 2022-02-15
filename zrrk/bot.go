@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"time"
 
@@ -13,31 +14,31 @@ import (
 )
 
 type Bot struct {
-	RoomID           int
-	dataChan         chan interface{}
-	cookies          string
-	infoURL          string
-	conn             *websocket.Conn
-	done             chan struct{}
-	token            string
-	host             string
-	plugins          []BotPlugin
-	primaryOutChan   chan string
-	secondaryOutChan chan string
+	RoomID       int
+	dataChan     chan interface{}
+	cookies      string
+	infoURL      string
+	conn         *websocket.Conn
+	done         chan struct{}
+	token        string
+	host         string
+	plugins      []BotPlugin
+	outChannel   chan string
+	descriptions []string
 }
 
 type BotPlugin interface {
 	HandleData(data interface{}, channel chan<- string)
-	ActivelySend(channel chan<- string)
+	GetDescriptions() []string
 	SetRoom(id int)
 }
 
 func New() *Bot {
 	return &Bot{
-		infoURL:          "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=%d&type=0",
-		dataChan:         make(chan interface{}, 100),
-		primaryOutChan:   make(chan string, 100),
-		secondaryOutChan: make(chan string, 100),
+		infoURL:      "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=%d&type=0",
+		dataChan:     make(chan interface{}, 100),
+		outChannel:   make(chan string, 100),
+		descriptions: []string{},
 	}
 }
 
@@ -78,13 +79,14 @@ func (b *Bot) Connect() {
 	go b.send()
 	b.sendFirstMsg()
 	for i := range b.plugins {
-		go b.plugins[i].ActivelySend(b.secondaryOutChan)
+		descriptions := b.plugins[i].GetDescriptions()
+		b.descriptions = append(b.descriptions, descriptions...)
 	}
 	go func() {
 		for dd := range b.dataChan {
 			for i := range b.plugins {
 				plugin := b.plugins[i]
-				plugin.HandleData(dd, b.primaryOutChan)
+				plugin.HandleData(dd, b.outChannel)
 			}
 		}
 	}()
@@ -93,16 +95,11 @@ func (b *Bot) Connect() {
 		timeout := time.NewTicker(time.Second * 10)
 		for {
 			select {
-			case msg := <-b.primaryOutChan:
+			case msg := <-b.outChannel:
 				WriteToFile(msg)
 			case <-timeout.C:
-				timeout := time.NewTicker(time.Second * 2)
-				select {
-				case msg := <-b.secondaryOutChan:
-					WriteToFile(msg)
-				case <-timeout.C:
-					CleanFile()
-				}
+				randomDescription := b.descriptions[rand.Intn(len(b.descriptions))]
+				WriteToFile(randomDescription)
 			}
 		}
 	}()

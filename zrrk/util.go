@@ -22,7 +22,7 @@ type BiliHeader struct {
 }
 
 func WriteToFile(msg string) {
-	log.Printf("输出文字: %s", msg)
+	log.Printf("进行文字的输出: %s", msg)
 	ioutil.WriteFile("../message.txt", []byte(msg), 0644)
 }
 func CleanFile() {

@@ -40,7 +40,8 @@ func New() *EnterCounterPlugin {
 	return &p
 }
 
-func (p *EnterCounterPlugin) ActivelySend(channel chan<- string) {
+func (p *EnterCounterPlugin) GetDescriptions() []string {
+	return []string{}
 }
 
 func (p *EnterCounterPlugin) SetRoom(id int) {
@@ -71,8 +72,6 @@ func (p *EnterCounterPlugin) HandleData(input interface{}, channel chan<- string
 					log.Println(res.Error)
 				}
 			}
-		} else {
-			log.Println("same day")
 		}
 		DB.Create(&EnterRecord{UID: uid, RoomID: p.RoomID, CreatedAt: time.Now()})
 	case zrrk.INTERACT_FOLLOW:

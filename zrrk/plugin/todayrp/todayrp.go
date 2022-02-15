@@ -35,11 +35,8 @@ func (p *TodayRPPlugin) SetRoom(id int) {
 	p.RoomID = id
 }
 
-func (p *TodayRPPlugin) ActivelySend(channel chan<- string) {
-	ticker := time.NewTicker(time.Minute * 1)
-	for range ticker.C {
-		channel <- "输入“06+运势”，每天测一次运势吧！"
-	}
+func (p *TodayRPPlugin) GetDescriptions() []string {
+	return []string{"输入“06+运势”，每天测一次运势吧！"}
 }
 
 func (p *TodayRPPlugin) HandleData(input interface{}, channel chan<- string) {
