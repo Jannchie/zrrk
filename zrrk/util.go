@@ -25,6 +25,10 @@ func WriteToFile(msg string) {
 	log.Printf("输出文字: %s", msg)
 	ioutil.WriteFile("../message.txt", []byte(msg), 0644)
 }
+func CleanFile() {
+	log.Printf("清理文件")
+	ioutil.WriteFile("../message.txt", []byte(" "), 0644)
+}
 
 func getStringWidth(str string) int {
 	var ans int

@@ -13,28 +13,31 @@ import (
 )
 
 type Bot struct {
-	RoomID     int
-	dataChan   chan interface{}
-	cookies    string
-	infoURL    string
-	conn       *websocket.Conn
-	done       chan struct{}
-	token      string
-	host       string
-	plugins    []BotPlugin
-	outputChan chan string
+	RoomID           int
+	dataChan         chan interface{}
+	cookies          string
+	infoURL          string
+	conn             *websocket.Conn
+	done             chan struct{}
+	token            string
+	host             string
+	plugins          []BotPlugin
+	primaryOutChan   chan string
+	secondaryOutChan chan string
 }
 
 type BotPlugin interface {
 	HandleData(data interface{}, channel chan<- string)
+	ActivelySend(channel chan<- string)
 	SetRoom(id int)
 }
 
 func New() *Bot {
 	return &Bot{
-		infoURL:    "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=%d&type=0",
-		dataChan:   make(chan interface{}, 100),
-		outputChan: make(chan string, 100),
+		infoURL:          "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id=%d&type=0",
+		dataChan:         make(chan interface{}, 100),
+		primaryOutChan:   make(chan string, 100),
+		secondaryOutChan: make(chan string, 100),
 	}
 }
 
@@ -74,19 +77,33 @@ func (b *Bot) Connect() {
 	go b.recieve()
 	go b.send()
 	b.sendFirstMsg()
+	for i := range b.plugins {
+		go b.plugins[i].ActivelySend(b.secondaryOutChan)
+	}
 	go func() {
 		for dd := range b.dataChan {
 			for i := range b.plugins {
 				plugin := b.plugins[i]
-				plugin.HandleData(dd, b.outputChan)
+				plugin.HandleData(dd, b.primaryOutChan)
 			}
 		}
 	}()
+	// TODO: 优先消化 Primary，如果没有，则消化 Secondary
 	go func() {
-		for msg := range b.outputChan {
-			log.Println(msg)
-			WriteToFile(msg)
-			time.Sleep(time.Second * 5)
+		timeout := time.NewTicker(time.Second * 10)
+		for {
+			select {
+			case msg := <-b.primaryOutChan:
+				WriteToFile(msg)
+			case <-timeout.C:
+				timeout := time.NewTicker(time.Second * 2)
+				select {
+				case msg := <-b.secondaryOutChan:
+					WriteToFile(msg)
+				case <-timeout.C:
+					CleanFile()
+				}
+			}
 		}
 	}()
 	color.Unset()

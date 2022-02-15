@@ -40,6 +40,9 @@ func New() *EnterCounterPlugin {
 	return &p
 }
 
+func (p *EnterCounterPlugin) ActivelySend(channel chan<- string) {
+}
+
 func (p *EnterCounterPlugin) SetRoom(id int) {
 	p.RoomID = id
 }
