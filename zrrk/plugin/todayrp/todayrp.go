@@ -49,7 +49,7 @@ func (p *TodayRPPlugin) HandleData(input interface{}, channel chan<- string) {
 		return
 	}
 	var rp TodayRP
-	_ = DB.Find(&rp, "uid = ?", data.User.UID)
+	_ = DB.Limit(1).Order("created_at DESC").Find(&rp, "uid = ?", data.User.UID)
 	isSameDay := zrrk.IsSameDay(rp.CreatedAt)
 	if isSameDay {
 		msg := fmt.Sprintf("%s今天已经测过，今天的运势是%d · %s。", data.User.Name, rp.RP, getRPLevel(rp.RP))
@@ -58,7 +58,10 @@ func (p *TodayRPPlugin) HandleData(input interface{}, channel chan<- string) {
 	}
 	rp.UID = data.User.UID
 	rp.RP = int(rand.NormFloat64()*50 + 50)
-	DB.Save(&rp)
+	DB.Create(&TodayRP{
+		UID: rp.UID,
+		RP:  rp.RP,
+	})
 	msg := fmt.Sprintf("%s今天的运势是%d · %s。", data.User.Name, rp.RP, getRPLevel(rp.RP))
 	channel <- msg
 }
