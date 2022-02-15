@@ -51,7 +51,7 @@ func (p *EnterCounterPlugin) HandleData(input interface{}, channel chan<- string
 	}
 	uid := data.User.UID
 	var enterCounter EnterCounter
-	_ = DB.Limit(1).Find(&enterCounter, "uid = ? & room_id = ?", uid, p.RoomID)
+	_ = DB.Limit(1).Find(&enterCounter, "uid = ? AND room_id = ?", uid, p.RoomID)
 	enterCounter.UID = uid
 	enterCounter.RoomID = p.RoomID
 	switch data.Type {
@@ -63,6 +63,7 @@ func (p *EnterCounterPlugin) HandleData(input interface{}, channel chan<- string
 					log.Println(res.Error)
 				}
 			} else {
+				// 初次进入
 				if res := DB.Create(&enterCounter); res.Error != nil {
 					log.Println(res.Error)
 				}
