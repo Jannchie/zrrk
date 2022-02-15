@@ -12,8 +12,8 @@ import (
 func main() {
 	log.SetFlags(log.LstdFlags)
 	log.SetOutput(os.Stdout)
-	bot := zrrk.Default(11365)
-	// bot := zrrk.Default(422915)
+	// bot := zrrk.Default(11365)
+	bot := zrrk.Default(422915)
 	bot.AddPlugin(todayrp.New())
 	bot.AddPlugin(enterc.New())
 	bot.Connect()

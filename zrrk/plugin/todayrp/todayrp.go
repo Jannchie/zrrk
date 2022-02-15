@@ -42,10 +42,7 @@ func (p *TodayRPPlugin) HandleData(input interface{}, channel chan<- string) {
 	if !strings.Contains(data.Text, "06") {
 		return
 	}
-	if !(strings.Contains(data.Text, "RP") ||
-		strings.Contains(data.Text, "rp") ||
-		strings.Contains(data.Text, "人品") ||
-		strings.Contains(data.Text, "运")) {
+	if !zrrk.ContainStrings(data.Text, "RP", "rp", "人品", "求签", "抽签", "运") {
 		return
 	}
 	if data.User.UID == 0 {

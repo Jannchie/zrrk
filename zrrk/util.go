@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 	"unicode"
 )
@@ -138,4 +139,16 @@ func ZlibParse(rawBody []byte) []byte {
 	}
 	body := buf.Bytes()
 	return body
+}
+
+func ContainStrings(s ...string) bool {
+	if len(s) < 2 {
+		log.Fatal("参数不足")
+	}
+	for i := 1; i < len(s); i++ {
+		if flag := strings.Contains(s[0], s[i]); flag {
+			return true
+		}
+	}
+	return false
 }

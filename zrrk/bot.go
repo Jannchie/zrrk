@@ -270,6 +270,8 @@ func (b *Bot) recieve() {
 						color.Set(color.FgYellow)
 						log.Println("检测到抽奖结果")
 						color.Unset()
+					case "WATCHED_CHANGE":
+						// {"cmd":"WATCHED_CHANGE","data":{"num":33,"text_small":"33","text_large":"33人看过"}}
 					case "SEND_GIFT":
 						var msg SendGift
 						_ = json.Unmarshal(curBody, &msg)
