@@ -2,9 +2,6 @@ package zrrk
 
 import (
 	"fmt"
-	"log"
-
-	"github.com/fatih/color"
 )
 
 func (b *Bot) HandleInteractWord(msg InteractWord) {
@@ -14,16 +11,12 @@ func (b *Bot) HandleInteractWord(msg InteractWord) {
 		Level: level,
 		Title: medalTitle,
 	}
-	var m string
 	switch msg.Data.MsgType {
 	case INTERACT_ENTER:
-		color.Set(color.FgBlack)
-		m = fmt.Sprintf("%s %s(UID: %10d) 进入了直播间", md.String(), msg.Data.Uname, msg.Data.UID)
+		b.INFO(fmt.Sprintf("%s %s(UID: %10d) 进入了直播间", md.String(), msg.Data.Uname, msg.Data.UID))
 	case INTERACT_FOLLOW:
-		color.Set(color.FgMagenta)
-		m = fmt.Sprintf("%s %s(UID: %10d) 关注了主播", md.String(), msg.Data.Uname, msg.Data.UID)
+		b.INFO(fmt.Sprintf("%s %s(UID: %10d) 关注了主播", md.String(), msg.Data.Uname, msg.Data.UID))
 	}
-	log.Println(m)
 	b.dataChan <- InteractData{
 		User: User{
 			Name:  msg.Data.Uname,
@@ -32,7 +25,6 @@ func (b *Bot) HandleInteractWord(msg InteractWord) {
 		},
 		Type: msg.Data.MsgType,
 	}
-	color.Unset()
 }
 
 func (b *Bot) HandleSendGift(msg SendGift) {
@@ -45,10 +37,7 @@ func (b *Bot) HandleSendGift(msg SendGift) {
 		UID:   msg.Data.UID,
 		Medal: md,
 	}
-	color.Set(color.FgCyan)
-	m := fmt.Sprintf("%s %s(UID: %10d) %s了 %d 个 %s", md.String(), msg.Data.Uname, msg.Data.UID, msg.Data.Action, msg.Data.Num, msg.Data.GiftName)
-	log.Println(m)
-	color.Unset()
+	b.INFO(fmt.Sprintf("%s %s(UID: %10d) %s了 %d 个 %s", md.String(), msg.Data.Uname, msg.Data.UID, msg.Data.Action, msg.Data.Num, msg.Data.GiftName))
 	gm := GiftData{
 		User: ud,
 		Gift: Gift{
@@ -79,12 +68,11 @@ func (b *Bot) HandleDanmuMsg(msg DanmuMsg) {
 		medalData.Level = lv
 		medalData.Title = modalTitle
 	}
-	m := fmt.Sprintf("%s %s(UID:%d): %s", medalData.String(), uname, uid, text)
+	b.INFO(fmt.Sprintf("%s %s(UID:%d): %s", medalData.String(), uname, uid, text))
 	b.dataChan <- DanmakuData{
 		User: user,
 		Text: text,
 	}
-	log.Println(m)
 }
 
 func (b *Bot) handleSC(msg SuperChatMessage) {
