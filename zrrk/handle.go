@@ -49,8 +49,8 @@ func (b *Bot) HandleUserToastMsg(msg UserToastMsg) {
 			ID:       msg.Data.EffectID,
 			Name:     msg.Data.RoleName,
 			Count:    msg.Data.Num,
-			Price:    msg.Data.Price / 1000,
-			Currency: "RMB",
+			Price:    msg.Data.Price,
+			Currency: "GOLD",
 		},
 	}
 	b.dataChan <- gm
@@ -69,8 +69,8 @@ func (b *Bot) HandleGuardBuy(msg GuardBuy) {
 			ID:       msg.Data.GiftID,
 			Name:     msg.Data.GiftName,
 			Count:    msg.Data.Num,
-			Price:    msg.Data.Price / 1000,
-			Currency: "RMB",
+			Price:    msg.Data.Price,
+			Currency: "GOLD",
 		},
 	}
 	b.dataChan <- gm
@@ -89,15 +89,15 @@ func (b *Bot) HandleSendGift(msg SendGift) {
 	if msg.Data.CoinType == "silver" && (msg.Data.Price > 0) {
 		b.GIFT(fmt.Sprintf("%s：%s了 %d 个 %s, [SILVER] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Price))
 	} else if (msg.Data.CoinType == "gold") && (msg.Data.Price > 0) {
-		b.HIGHLIGHT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %dRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Price/1000))
+		b.HIGHLIGHT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %.1fRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, float64(msg.Data.Price)/1000))
 	} else {
 		b.DEBUG(fmt.Sprintf("%s：%s了 %d 个 %s, [OTHERS] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Price))
 	}
 	price := msg.Data.Price
 	currency := "SILVER"
 	if msg.Data.CoinType == "gold" {
-		currency = "RMB"
-		price = msg.Data.Price / 1000
+		currency = "GOLD"
+		price = msg.Data.Price
 	}
 	gm := GiftData{
 		User: ud,
@@ -157,7 +157,6 @@ func (b *Bot) handleSC(msg SuperChatMessage) {
 		User: ud,
 		Text: msg.Data.Message,
 	}
-	log.Printf("%+v", msg)
 	b.HIGHLIGHT(fmt.Sprintf("%s：<%d RMB> SC ** %s **", ud.String(), msg.Data.Price, msg.Data.Message))
 	b.dataChan <- GiftData{
 		User: ud,
@@ -165,8 +164,8 @@ func (b *Bot) handleSC(msg SuperChatMessage) {
 			ID:       msg.Data.Gift.GiftID,
 			Name:     msg.Data.Gift.GiftName,
 			Count:    msg.Data.Gift.Num,
-			Price:    msg.Data.Price,
-			Currency: "RMB",
+			Price:    msg.Data.Price * 1000,
+			Currency: "GOLD",
 		},
 	}
 }

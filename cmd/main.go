@@ -16,11 +16,11 @@ func main() {
 		545068,
 	}
 	m := sync.Mutex{}
-	for _, i := range roomIDs {
-		bot := zrrk.Default(i)
-		bot.Lock = &m
+	for _, roomID := range roomIDs {
+		bot := zrrk.Default(roomID, &m)
 		// bot.AddPlugin(todayrp.New())
 		// bot.AddPlugin(enterc.New())
+		// bot.AddPlugin(gift.New())
 		go bot.Connect()
 	}
 	done := make(chan struct{})

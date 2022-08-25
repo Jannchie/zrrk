@@ -95,9 +95,10 @@ func New() *Bot {
 	}
 }
 
-func Default(roomID int) *Bot {
+func Default(roomID int, m *sync.Mutex) *Bot {
 	b := New()
 	b.RoomID = roomID
+	b.Lock = m
 	return b
 }
 
@@ -292,19 +293,19 @@ func (b *Bot) recieve(ctx context.Context) {
 						case "LIVE_INTERACTIVE_GAME":
 							// log.Printf("直播间特殊表情: %s\n %s", cmd, curBody)
 						case "ONLINE_RANK_COUNT":
-							b.INFO("高能榜数量更新")
+							b.DEBUG("高能榜数量更新")
 						case "ENTRY_EFFECT":
-							b.INFO("收到了入场特效")
+							b.DEBUG("收到了入场特效")
 						case "COMBO_SEND":
-							b.INFO("进行了送礼连击")
+							b.DEBUG("进行了送礼连击")
 						case "LIVE":
-							b.INFO("现在已开始直播")
+							b.HIGHLIGHT("现在已开始直播")
 						case "PREPARING":
-							b.INFO("直播间正准备中")
+							b.HIGHLIGHT("直播间正准备中")
 						case "ONLINE_RANK_TOP3":
-							b.INFO("高能榜发生变动")
+							b.DEBUG("高能榜发生变动")
 						case "ROOM_CHANGE":
-							b.INFO("修改了房间信息")
+							b.HIGHLIGHT("修改了房间信息")
 						case "GUARD_BUY":
 							var msg GuardBuy
 							_ = json.Unmarshal(curBody, &msg)
@@ -328,7 +329,6 @@ func (b *Bot) recieve(ctx context.Context) {
 						case "ANCHOR_LOT_END":
 							b.INFO("检测到抽奖结束")
 						case "ANCHOR_LOT_AWARD":
-							// 抽奖结果
 							b.INFO("检测到抽奖结果")
 						case "WATCHED_CHANGE":
 							// 观看人数变动
