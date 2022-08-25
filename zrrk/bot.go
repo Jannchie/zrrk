@@ -31,30 +31,41 @@ type Bot struct {
 }
 
 const (
-	LogInfo  = 1
-	LogWarn  = 2
-	LogErr   = 3
-	LogDebug = 4
+	LogHighLight = 6
+	LogGift      = 1
+	LogInfo      = 2
+	LogWarn      = 3
+	LogErr       = 4
+	LogDebug     = 5
 )
 
 func (b *Bot) Log(logType int, args ...any) {
 	b.Lock.Lock()
 	msg := fmt.Sprint(args...)
 	switch logType {
+	case LogHighLight:
+		color.Set(color.FgHiMagenta)
 	case LogInfo:
-		color.Set(color.FgGreen)
+		color.Set(color.FgHiCyan)
 	case LogWarn:
 		color.Set(color.FgYellow)
 	case LogErr:
 		color.Set(color.FgRed)
 	case LogDebug:
 		color.Set(color.FgHiBlack)
+	case LogGift:
+		color.Set(color.FgHiBlue)
 	}
 	log.Println(fmt.Sprintf("[ROOM %d] %s", b.RoomID, msg))
 	color.Unset()
 	b.Lock.Unlock()
 }
-
+func (b *Bot) HIGHLIGHT(args ...any) {
+	b.Log(LogHighLight, args...)
+}
+func (b *Bot) GIFT(args ...any) {
+	b.Log(LogGift, args...)
+}
 func (b *Bot) INFO(args ...any) {
 	b.Log(LogInfo, args...)
 }
@@ -273,34 +284,35 @@ func (b *Bot) recieve(ctx context.Context) {
 						curRawHead := body[offset : offset+16]
 						curHead := GetHeader(curRawHead)
 						curBody := body[offset+16 : offset+int(curHead.PackL)]
-						cmd := newFunction(curBody)
+						cmd := getCMD(curBody)
 						switch cmd {
 						case "ONLINE_RANK_V2":
 							var msg OnlineRankV2
 							_ = json.Unmarshal(curBody, &msg)
-							// 高能榜
 						case "LIVE_INTERACTIVE_GAME":
-							// 不明
+							// log.Printf("直播间特殊表情: %s\n %s", cmd, curBody)
 						case "ONLINE_RANK_COUNT":
-							//高能榜数量更新
+							b.INFO("高能榜数量更新")
 						case "ENTRY_EFFECT":
-							// 进入特效
+							b.INFO("收到了入场特效")
 						case "COMBO_SEND":
-							// 送礼连击
+							b.INFO("进行了送礼连击")
 						case "LIVE":
-							// 开始直播
 							b.INFO("现在已开始直播")
 						case "PREPARING":
 							b.INFO("直播间正准备中")
-							// 下播
 						case "ONLINE_RANK_TOP3":
-							// 高能榜变动
+							b.INFO("高能榜发生变动")
 						case "ROOM_CHANGE":
-							// 修改房间信息
 							b.INFO("修改了房间信息")
 						case "GUARD_BUY":
-							// 购买舰长
+							var msg GuardBuy
+							_ = json.Unmarshal(curBody, &msg)
+							b.HandleGuardBuy(msg)
 						case "USER_TOAST_MSG":
+							var msg UserToastMsg
+							_ = json.Unmarshal(curBody, &msg)
+							b.HandleUserToastMsg(msg)
 							// 自动续费舰长之类的
 						case "NOTICE_MSG":
 							// 跑马灯
@@ -312,21 +324,35 @@ func (b *Bot) recieve(ctx context.Context) {
 							_ = json.Unmarshal(curBody, &msg)
 							b.handleSC(msg)
 						case "SUPER_CHAT_MESSAGE_JPN":
-							// SC JPN
+							b.INFO("日本语超级弹幕")
 						case "ANCHOR_LOT_END":
-							// 抽奖结束
 							b.INFO("检测到抽奖结束")
 						case "ANCHOR_LOT_AWARD":
 							// 抽奖结果
 							b.INFO("检测到抽奖结果")
 						case "WATCHED_CHANGE":
-							// {"cmd":"WATCHED_CHANGE","data":{"num":33,"text_small":"33","text_large":"33人看过"}}
+							// 观看人数变动
+							var msg WatchedChange
+							_ = json.Unmarshal(curBody, &msg)
+							b.INFO("观看人数有变动: ", msg.Data.TextLarge)
 						case "SEND_GIFT":
 							var msg SendGift
 							_ = json.Unmarshal(curBody, &msg)
 							b.HandleSendGift(msg)
 						case "INTERACT_WORD":
 							b.handleInteractWord(curBody)
+						case "POPULARITY_RED_POCKET_WINNER_LIST":
+							var msg PopularityRedPocketWinnerList
+							_ = json.Unmarshal(curBody, &msg)
+							b.handlePopularityRedPocketWinnerList(&msg)
+						case "COMMON_NOTICE_DANMAKU":
+							var msg CommonNoticeDanmaku
+							_ = json.Unmarshal(curBody, &msg)
+							b.handleCommonNoticeDanmaku(&msg)
+						case "ROOM_BLOCK_MSG":
+							var msg RoomBlockMsg
+							_ = json.Unmarshal(curBody, &msg)
+							b.INFO("用户被房管封禁: ", msg.Data.UID)
 						default:
 							log.Printf("收到未解析的命令: %s\n %s", cmd, curBody)
 						}
@@ -343,6 +369,11 @@ func (b *Bot) recieve(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (b *Bot) handlePopularityRedPocketWinnerList(msg *PopularityRedPocketWinnerList) {
+}
+func (b *Bot) handleCommonNoticeDanmaku(msg *CommonNoticeDanmaku) {
 }
 
 func (b *Bot) handleInteractWord(data []byte) {
@@ -365,7 +396,17 @@ func (b *Bot) handleDanmuMsg(data []byte) {
 	b.HandleDanmuMsg(msg)
 }
 
-func newFunction(curBody []byte) string {
+func (b *Bot) handleGuardBuy(data []byte) {
+	var msg DanmuMsg
+	err := json.Unmarshal(data, &msg)
+	if err != nil {
+		b.ERROR("解析弹幕失败: ", err)
+		return
+	}
+	b.HandleDanmuMsg(msg)
+}
+
+func getCMD(curBody []byte) string {
 	var msg Msg
 	err := json.Unmarshal(curBody, &msg)
 	if err != nil {

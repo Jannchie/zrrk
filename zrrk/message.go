@@ -331,6 +331,28 @@ type GuardBuy struct {
 	} `json:"data"`
 }
 
+type LiveIOnteractiveGame struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		Type           int         `json:"type"`
+		UID            int         `json:"uid"`
+		Uname          string      `json:"uname"`
+		Uface          string      `json:"uface"`
+		GiftID         int         `json:"gift_id"`
+		GiftName       string      `json:"gift_name"`
+		GiftNum        int         `json:"gift_num"`
+		Price          int         `json:"price"`
+		Paid           bool        `json:"paid"`
+		Msg            string      `json:"msg"`
+		FansMedalLevel int         `json:"fans_medal_level"`
+		GuardLevel     int         `json:"guard_level"`
+		Timestamp      int         `json:"timestamp"`
+		AnchorLottery  interface{} `json:"anchor_lottery"`
+		PkInfo         interface{} `json:"pk_info"`
+		AnchorInfo     interface{} `json:"anchor_info"`
+	} `json:"data"`
+}
+
 type UserToastMsg struct {
 	Cmd  string `json:"cmd"`
 	Data struct {
@@ -402,4 +424,48 @@ type NoticeMsg struct {
 	} `json:"scatter"`
 	MarqueeID  string `json:"marquee_id"`
 	NoticeType int    `json:"notice_type"`
+}
+
+type PopularityRedPocketWinnerList struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		LotID      int `json:"lot_id"`
+		TotalNum   int `json:"total_num"`
+		WinnerInfo []struct {
+			UID         int    `json:"uid"`
+			Name        string `json:"name"`
+			UserType    int    `json:"user_type"`
+			AwardType   int    `json:"award_type"`
+			AwardID     int    `json:"award_id"`
+			AwardName   string `json:"award_name"`
+			AwardPic    string `json:"award_pic"`
+			AwardBigPic string `json:"award_big_pic"`
+			AwardPrice  int    `json:"award_price"`
+			BagID       int    `json:"bag_id"`
+			GiftID      int    `json:"gift_id"`
+			GiftNum     int    `json:"gift_num"`
+		} `json:"winner_info"`
+	} `json:"data"`
+}
+
+type CommonNoticeDanmaku struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		ContentSegments []struct {
+			FontColor string `json:"font_color"`
+			Text      string `json:"text"`
+			Type      int    `json:"type"`
+		} `json:"content_segments"`
+		Dmscore   int   `json:"dmscore"`
+		Terminals []int `json:"terminals"`
+	} `json:"data"`
+}
+
+type WatchedChange struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		Num       int    `json:"num"`
+		TextSmall string `json:"text_small"`
+		TextLarge string `json:"text_large"`
+	} `json:"data"`
 }
