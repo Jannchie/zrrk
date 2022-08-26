@@ -62,7 +62,7 @@ func (b *Bot) Log(logType int, args ...any) {
 	case LogGift:
 		color.Set(color.FgHiBlue)
 	}
-	log.Println(fmt.Sprintf("[ROOM %d] %s", b.RoomID, msg))
+	log.Println(fmt.Sprintf("[ROOM %10d] %s", b.RoomID, msg))
 	color.Unset()
 	b.Lock.Unlock()
 }
@@ -173,11 +173,12 @@ func (b *Bot) Connect() {
 		}(ctx)
 		// TODO: 优先消化 Primary，如果没有，则消化 Secondary
 		go func(ctx context.Context) {
+			ticker := time.NewTicker(time.Second * 10)
 			for {
 				select {
 				case msg := <-b.outChannel:
 					WriteToFile(msg)
-				case <-time.NewTicker(time.Second * 10).C:
+				case <-ticker.C:
 					if len(b.descriptions) > 0 {
 						randomDescription := b.descriptions[rand.Intn(len(b.descriptions))]
 						WriteToFile(randomDescription)
@@ -471,6 +472,20 @@ func (b *Bot) recieve(ctx context.Context) {
 							// {"cmd":"SHOPPING_EXPLAIN_CARD","data":{"goods_id":"1531173988422647808","goods_name":"i5 12400F/RTX3060Ti/3070Ti/16G/500G游戏台式电脑主机diy组装机","goods_price":"5599","goods_max_price":"","sale_status":0,"coupon_name":"立减400元","goods_icon":"http://i0.hdslb.com/bfs/e-commerce-goods/2ad6ed6a8effc4a82bdaaf9b0a662956fbb0daac.jpg","status":3,"h5_url":"https://live.bilibili.com/p/html/live-app-ecommerce/index.html?is_live_half_webview=1\u0026hybrid_rotate_d=0\u0026hybrid_half_ui=1,3,100p,70p,0,0,30,100,12,0;2,2,375,100p,0,0,30,100,0,0;3,3,100p,70p,0,0,30,100,12,0;4,2,375,100p,0,0,30,100,0,0;5,3,100p,70p,0,0,30,100,12,0;6,3,100p,70p,0,0,30,100,12,0;7,3,100p,70p,0,0,30,100,12,0\u0026web_type=1\u0026source=1\u0026goods_id=1531173988422647808#/taobao","source":1,"timestamp":1661512808,"is_pre_sale":0,"activity_info":null,"pre_sale_info":null,"early_bird_info":null,"unique_id":"1563124129732079616","uid":297991412,"selling_point":"","coupon_discount_price":"5199.00","sei_status":0,"gift_buy_info":null,"reward_info":null,"is_exclusive":false,"coupon_id":""}}
 						case "ACTIVITY_BANNER_CHANGE":
 							// {"cmd":"ACTIVITY_BANNER_CHANGE","data":{"list":[{"id":2169,"timestamp":1661514300,"position":"bottom","activity_title":"第五人格新监管者隐士活动","cover":"https://i0.hdslb.com/bfs/live/e7870123c939a3b4b4c0665166fae07380d71e84.png","jump_url":"https://www.bilibili.com/blackboard/dynamic/309491?-Abrowser=live\u0026is_live_half_webview=1\u0026hybrid_rotate_d=1\u0026is_cling_player=1\u0026hybrid_half_ui=1,3,100p,70p,0,1,30,100;2,2,375,100p,0,1,30,100;3,3,100p,70p,0,1,30,100;4,2,375,100p,0,1,30,100;5,3,100p,70p,0,1,30,100;6,3,100p,70p,0,1,30,100;7,3,100p,70p,0,1,30,100;8,3,100p,70p,0,1,30,100","is_close":1,"action":"update"}]}}
+						case "GUARD_ACHIEVEMENT_ROOM":
+							// {"cmd":"GUARD_ACHIEVEMENT_ROOM","data":{"anchor_basemap_url":"https://i0.hdslb.com/bfs/live/f873a04b1544d8f8bcc37fb2924ac9a2c2554031.png","anchor_guard_achieve_level":100,"anchor_modal":{"first_line_content":"恭喜当前舰队规模突破\u003c%100%\u003e","highlight_color":"#00DCFF","second_line_content":"至直播中心 - 获奖记录填写收货信息可获得实物勋章奖励哦～","show_time":5},"app_basemap_url":"https://i0.hdslb.com/bfs/live/83008812e86cae42049414e965d6ab6002f061cb.png","current_achievement_level":2,"dmscore":8,"event_type":1,"face":"http://i1.hdslb.com/bfs/face/6e5235459bfb8e0cbdb0e6357524abbad7f7f0bc.jpg","first_line_content":"恭喜主播\u003c%希侑Kiyuu%\u003e","first_line_highlight_color":"#F2AE09","first_line_normal_color":"#FFFFFF","headmap_url":"https://i0.hdslb.com/bfs/vc/071eb10548fe9bc482ff69331983d94192ce9507.png","is_first":true,"is_first_new":false,"room_id":23805066,"second_line_content":"舰队规模突破\u003c%100%\u003e","second_line_highlight_color":"#06DDFF","second_line_normal_color":"#FFFFFF","show_time":3,"web_basemap_url":"https://i0.hdslb.com/bfs/live/83008812e86cae42049414e965d6ab6002f061cb.png"}}
+						case "ROOM_SKIN_MSG":
+							// {"cmd":"ROOM_SKIN_MSG","skin_id":65,"status":1,"end_time":2145888000,"current_time":1661515440,"only_local":false,"scatter":{"min":1,"max":200},"skin_config":{"android":{"1":{"zip":"https:\/\/i0.hdslb.com\/bfs\/live\/roomSkin\/d50490b2fb05cc32fe69a9ea40839fd68c575738.zip","md5":"1E111556D18406698350C007828EA0F8"}},"ios":{"1":{"zip":"https:\/\/i0.hdslb.com\/bfs\/live\/roomSkin\/8cc833f1e5e9caac5afd0f0d494dbb79e505b06e.zip","md5":"0781BED8AC8F09D18EB1F2091F211A82"}},"ipad":{"1":{"zip":"https:\/\/i0.hdslb.com\/bfs\/live\/roomSkin\/c814b4bc96e0ceae0be7c70300a49e2cdc9ccecc.zip","md5":"ED14E47E9D32FABB86AE857E8CBD1D1D"}},"web":{"1":{"zip":"https:\/\/i0.hdslb.com\/bfs\/live\/roomSkin\/bfac22ed069c4d41a6b9e2a305c9efd58bc07137.zip","md5":"9AE7E63C79466165ED03131CA6C62D1C","platform":"web","version":"1","headInfoBgPic":"https:\/\/i0.hdslb.com\/bfs\/live\/roomSkin\/7ba5a32cda0f985aa02bb05f453eac1f03cb976d.png","giftControlBgPic":"https:\/\/i0.hdslb.com\/bfs\/live\/roomSkin\/f864809e6be7b3fe834de6d37b5b7f42b2cdff2a.png","rankListBgPic":"https:\/\/i0.hdslb.com\/bfs\/live\/roomSkin\/00d1718591af1b5117c588f7bac1efb6c1e97fde.png","mainText":"#FFFFD432","normalText":"#FF999999","highlightContent":"#FFFFD432","border":"#33999999"}}}}
+						case "PLAY_TAG":
+							// {"cmd":"PLAY_TAG","data":{"tag_id":59095,"pic":"https://i0.hdslb.com/bfs/live/3c26626a30fdb70e44e16fd4313fa02785486e30.png","timestamp":1661517234,"type":"ADD"}}
+						case "SPECIAL_GIFT":
+							// {"cmd":"SPECIAL_GIFT","data":{"39":{"action":"start","content":"前方高能预警，注意这不是演习","hadJoin":0,"id":"3352122929875","num":1,"storm_gif":"http://static.hdslb.com/live-static/live-room/images/gift-section/mobilegift/2/jiezou.gif?2017011901","time":90}}}
+						case "VOICE_JOIN_STATUS":
+							// {"cmd":"VOICE_JOIN_STATUS","data":{"room_id":6535302,"status":1,"channel":"919003","channel_type":"voice","uid":399963039,"user_name":"糖八ks","head_pic":"http://i0.hdslb.com/bfs/face/67d0fa7c9ce194a3d106ed4f82b13df9d86363c1.jpg","guard":0,"start_at":1661518050,"current_time":1661518050,"web_share_link":"https://live.bilibili.com/h5/6535302"},"room_id":6535302}
+						case "VIDEO_CONNECTION_JOIN_END":
+							//  {"cmd":"VIDEO_CONNECTION_JOIN_END","data":{"channel_id":"72057594038846994","start_at":1661520034,"toast":"主播结束了与澈屿Don的连线.","current_time":1661520034},"roomid":23144336}
+						case "VIDEO_CONNECTION_MSG":
+						  // {"cmd":"VIDEO_CONNECTION_MSG","data":{"channel_id":"72057594038846994","current_time":1661520034,"dmscore":4,"toast":"主播结束了视频连线"}}
 						default:
 							log.Printf("收到未解析的命令: %s\n %s", cmd, curBody)
 						}
@@ -536,10 +551,10 @@ func getCMD(curBody []byte) (string, error) {
 func (b *Bot) getDanmakuInfo() (*DanmakuInfoResp, error) {
 	b.DEBUG("弹幕池情报请求")
 	resp, err := GetResponse(fmt.Sprintf(b.infoURL, b.RoomID))
-	defer resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	var danmakuInfoResp DanmakuInfoResp
 	decoder := json.NewDecoder(resp.Body)
 	err2 := decoder.Decode(&danmakuInfoResp)

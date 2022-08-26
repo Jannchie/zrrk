@@ -65,7 +65,7 @@ func main() {
 				bot.Connect()
 				connectCount--
 			}(roomID)
-			<-time.After(time.Second / 16)
+			<-time.After(time.Second / 32)
 		}
 		<-time.After(time.Second * 5)
 	}

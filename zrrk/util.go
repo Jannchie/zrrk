@@ -5,10 +5,12 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"errors"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
@@ -131,15 +133,27 @@ func Itob16(num int16) []byte {
 	return buffer.Bytes()
 }
 
+var (
+	zr io.ReadCloser
+	r  *bytes.Reader
+	m  sync.Mutex
+)
+
 func ZlibParse(rawBody []byte) []byte {
-	reader := bytes.NewReader(rawBody)
-	readc, err := zlib.NewReader(reader)
-	if err != nil {
-		log.Println("解压错误: ", err)
+	m.Lock()
+	defer m.Unlock()
+	if zr == nil {
+		r = bytes.NewReader(rawBody)
+		zr, _ = zlib.NewReader(r)
+	} else {
+		r.Reset(rawBody)
+		err := zr.(zlib.Resetter).Reset(r, nil)
+		if err != nil {
+			log.Println("解压错误: ", err)
+		}
 	}
-	defer readc.Close()
 	buf := bytes.NewBuffer(nil)
-	if _, err := buf.ReadFrom(readc); err != nil {
+	if _, err := buf.ReadFrom(zr); err != nil {
 		log.Println("解压错误: ", err)
 	}
 	body := buf.Bytes()

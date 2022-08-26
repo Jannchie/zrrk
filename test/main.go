@@ -1,14 +1,32 @@
 package main
 
-import "fmt"
+import (
+	"log"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"sync"
 
-func Test[Value int | string](a Value) Value {
-	fmt.Println(a)
-	return a
-}
+	"github.com/jannchie/zrrk/zrrk"
+)
 
 func main() {
-	Test(1)
-	Test("123")
-	// g
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+	log.SetFlags(log.LstdFlags)
+	log.SetOutput(os.Stdout)
+
+	syncMap := sync.Map{}
+
+	var roomID int
+	m := sync.Mutex{}
+	bot := zrrk.Default(&m, &zrrk.BotConfig{
+		RoomID:     918365,
+		StayMinHot: 0,
+		LogLevel:   zrrk.LogDebug,
+	})
+	syncMap.Store(roomID, bot)
+	defer syncMap.Delete(roomID)
+	bot.Connect()
 }
