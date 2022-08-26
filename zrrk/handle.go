@@ -2,7 +2,6 @@ package zrrk
 
 import (
 	"fmt"
-	"log"
 )
 
 func (b *Bot) HandleInteractWord(msg InteractWord) {
@@ -41,8 +40,7 @@ func (b *Bot) HandleUserToastMsg(msg UserToastMsg) {
 		UID:  msg.Data.UID,
 	}
 	b.HIGHLIGHT(fmt.Sprintf("%s：%s！舰长等级Lv.%d, [%s] 价值: %dRMB", ud.String(),
-		msg.Data.ToastMsg, msg.Data.GuardLevel, msg.Data.RoleName, msg.Data.Price/1000))
-	log.Printf("%+v", msg)
+		msg.Data.ToastMsg, msg.Data.GuardLevel, msg.Data.RoleName, msg.Data.Num*msg.Data.Price/1000))
 	gm := GiftData{
 		User: ud,
 		Gift: Gift{
@@ -61,19 +59,18 @@ func (b *Bot) HandleGuardBuy(msg GuardBuy) {
 		Name: msg.Data.Username,
 		UID:  msg.Data.UID,
 	}
-	b.HIGHLIGHT(fmt.Sprintf("%s：上舰了！Lv.%d, [%s] 价值: %dRMB", ud.String(), msg.Data.GuardLevel, msg.Data.GiftName, msg.Data.Price/1000))
-	log.Printf("%+v", msg)
-	gm := GiftData{
-		User: ud,
-		Gift: Gift{
-			ID:       msg.Data.GiftID,
-			Name:     msg.Data.GiftName,
-			Count:    msg.Data.Num,
-			Price:    msg.Data.Price,
-			Currency: "GOLD",
-		},
-	}
-	b.dataChan <- gm
+	b.HIGHLIGHT(fmt.Sprintf("%s：上舰了！舰长等级Lv.%d, [%s] 价值: %dRMB", ud.String(), msg.Data.GuardLevel, msg.Data.GiftName, msg.Data.Num*msg.Data.Price/1000))
+	// gm := GiftData{
+	// 	User: ud,
+	// 	Gift: Gift{
+	// 		ID:       msg.Data.GiftID,
+	// 		Name:     msg.Data.GiftName,
+	// 		Count:    msg.Data.Num,
+	// 		Price:    msg.Data.Price,
+	// 		Currency: "GOLD",
+	// 	},
+	// }
+	// b.dataChan <- gm
 }
 
 func (b *Bot) HandleSendGift(msg SendGift) {
@@ -87,11 +84,11 @@ func (b *Bot) HandleSendGift(msg SendGift) {
 		Medal: md,
 	}
 	if msg.Data.CoinType == "silver" && (msg.Data.Price > 0) {
-		b.GIFT(fmt.Sprintf("%s：%s了 %d 个 %s, [SILVER] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Price))
+		b.GIFT(fmt.Sprintf("%s：%s了 %d 个 %s, [SILVER] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Num*msg.Data.Price))
 	} else if (msg.Data.CoinType == "gold") && (msg.Data.Price > 0) {
-		b.HIGHLIGHT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %.1fRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, float64(msg.Data.Price)/1000))
+		b.HIGHLIGHT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %.1fRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, float64(msg.Data.Num*msg.Data.Price)/1000))
 	} else {
-		b.DEBUG(fmt.Sprintf("%s：%s了 %d 个 %s, [OTHERS] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Price))
+		b.DEBUG(fmt.Sprintf("%s：%s了 %d 个 %s, [OTHERS] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Num*msg.Data.Price))
 	}
 	price := msg.Data.Price
 	currency := "SILVER"

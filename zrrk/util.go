@@ -71,7 +71,7 @@ func HeadGen(datalength, Opeation, Sequence int) []byte {
 
 func GetHeader(rawHead []byte) *BiliHeader {
 	if len(rawHead) != WS_PACKAGE_HEADER_TOTAL_LENGTH {
-		log.Fatal(errors.New("invalid header length"))
+		log.Println(errors.New("invalid header length"))
 	}
 	PackL := Btoi32(rawHead, WS_PACKAGE_OFFSET)
 	HeadL := Btoi16(rawHead, WS_HEADER_OFFSET)
@@ -91,7 +91,7 @@ func btoi32(b []byte) int32 {
 	var buffer int32
 	err := binary.Read(bytes.NewReader(b), binary.BigEndian, &buffer)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	return buffer
 }
@@ -100,7 +100,7 @@ func btoi16(b []byte) int16 {
 	var buffer int16
 	err := binary.Read(bytes.NewReader(b), binary.BigEndian, &buffer)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	return buffer
 }
@@ -117,7 +117,7 @@ func Itob32(num int32) []byte {
 	var buffer bytes.Buffer
 	err := binary.Write(&buffer, binary.BigEndian, num)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	return buffer.Bytes()
 }
@@ -126,20 +126,21 @@ func Itob16(num int16) []byte {
 	var buffer bytes.Buffer
 	err := binary.Write(&buffer, binary.BigEndian, num)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	return buffer.Bytes()
 }
 
 func ZlibParse(rawBody []byte) []byte {
-	readc, err := zlib.NewReader(bytes.NewReader(rawBody))
+	reader := bytes.NewReader(rawBody)
+	readc, err := zlib.NewReader(reader)
 	if err != nil {
-		log.Fatal("解压错误: ", err)
+		log.Println("解压错误: ", err)
 	}
 	defer readc.Close()
 	buf := bytes.NewBuffer(nil)
 	if _, err := buf.ReadFrom(readc); err != nil {
-		log.Fatal("解压错误: ", err)
+		log.Println("解压错误: ", err)
 	}
 	body := buf.Bytes()
 	return body
@@ -147,7 +148,7 @@ func ZlibParse(rawBody []byte) []byte {
 
 func ContainStrings(s ...string) bool {
 	if len(s) < 2 {
-		log.Fatal("参数不足")
+		log.Println("参数不足")
 	}
 	for i := 1; i < len(s); i++ {
 		if flag := strings.Contains(s[0], s[i]); flag {

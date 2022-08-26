@@ -26,20 +26,26 @@ type Bot struct {
 	plugins       []BotPlugin
 	outChannel    chan string
 	descriptions  []string
-	reconnectChan chan struct{}
+	ReconnectChan chan struct{}
+	ExitChan      chan struct{}
 	Lock          *sync.Mutex
+	StayMinHot    int32
+	LogLevel      int
 }
 
 const (
-	LogHighLight = 6
-	LogGift      = 1
-	LogInfo      = 2
-	LogWarn      = 3
-	LogErr       = 4
-	LogDebug     = 5
+	LogHighLight = 5
+	LogGift      = 4
+	LogInfo      = 3
+	LogWarn      = 2
+	LogErr       = 1
+	LogDebug     = 0
 )
 
 func (b *Bot) Log(logType int, args ...any) {
+	if b.LogLevel > logType {
+		return
+	}
 	b.Lock.Lock()
 	msg := fmt.Sprint(args...)
 	switch logType {
@@ -91,14 +97,23 @@ func New() *Bot {
 		dataChan:      make(chan interface{}, 100),
 		outChannel:    make(chan string, 100),
 		descriptions:  []string{},
-		reconnectChan: make(chan struct{}),
+		ReconnectChan: make(chan struct{}),
+		ExitChan:      make(chan struct{}),
 	}
 }
 
-func Default(roomID int, m *sync.Mutex) *Bot {
+type BotConfig struct {
+	RoomID     int
+	StayMinHot int32
+	LogLevel   int
+}
+
+func Default(m *sync.Mutex, config *BotConfig) *Bot {
 	b := New()
-	b.RoomID = roomID
+	b.RoomID = config.RoomID
 	b.Lock = m
+	b.StayMinHot = config.StayMinHot
+	b.LogLevel = config.LogLevel
 	return b
 }
 
@@ -112,36 +127,50 @@ func (b *Bot) SetCookies(cookies string) {
 }
 
 func (b *Bot) Connect() {
-	b.Log(LogDebug, "ZRRK已开始运行")
-	b.Log(LogDebug, "尝试接续直播间")
+	b.DEBUG("ZRRK已开始运行")
+	b.DEBUG("尝试接续直播间")
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
 		info, err := b.getDanmakuInfo()
 		if err != nil {
-			b.Log(LogErr, "无法获取到信息: ", err)
+			b.ERROR("无法获取到信息: ", err)
 			cancel()
 			return
 		}
 		b.setHostAndToken(info)
-		b.makeConnection()
+		err = b.makeConnection()
 		if err != nil {
-			log.Fatal(err)
+			b.ERROR("建立该连接失败: ", err)
+			cancel()
+			<-time.After(time.Second * 5)
+			continue
 		}
 		go b.recieve(ctx)
 		go b.send(ctx)
-		b.sendFirstMsg()
+		err = b.sendFirstMsg()
+		if err != nil {
+			b.ERROR("初次接触未成功: ", err)
+			cancel()
+			<-time.After(time.Second * 5)
+			continue
+		}
 		for i := range b.plugins {
 			descriptions := b.plugins[i].GetDescriptions()
 			b.descriptions = append(b.descriptions, descriptions...)
 		}
-		go func() {
-			for dd := range b.dataChan {
-				for i := range b.plugins {
-					plugin := b.plugins[i]
-					plugin.HandleData(dd, b.outChannel)
+		go func(ctx context.Context) {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case dd := <-b.dataChan:
+					for i := range b.plugins {
+						plugin := b.plugins[i]
+						plugin.HandleData(dd, b.outChannel)
+					}
 				}
 			}
-		}()
+		}(ctx)
 		// TODO: 优先消化 Primary，如果没有，则消化 Secondary
 		go func(ctx context.Context) {
 			for {
@@ -158,19 +187,27 @@ func (b *Bot) Connect() {
 				}
 			}
 		}(ctx)
-		<-b.reconnectChan
-		b.Log(LogWarn, "检测到重连信号")
-		cancel()
-		b.Log(LogWarn, "重新接续直播间")
+		select {
+		case <-b.ReconnectChan:
+			b.WARNING("检测到重连信号")
+			cancel()
+			b.HIGHLIGHT(LogWarn, "重新接续直播间")
+		case <-b.ExitChan:
+			b.WARNING("检测到退出信号")
+			cancel()
+			b.DEBUG("已经退出直播间")
+			return
+		}
 	}
 }
 
-func (b *Bot) makeConnection() {
+func (b *Bot) makeConnection() error {
 	var err error
 	b.conn, _, err = websocket.DefaultDialer.Dial(fmt.Sprintf("wss://%s/sub", b.host), nil)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }
 
 func (b *Bot) setHostAndToken(info *DanmakuInfoResp) {
@@ -178,7 +215,7 @@ func (b *Bot) setHostAndToken(info *DanmakuInfoResp) {
 	b.token = info.Data.Token
 }
 
-func (b *Bot) sendFirstMsg() {
+func (b *Bot) sendFirstMsg() error {
 	b.DEBUG("将进行初次接触")
 	data := map[string]interface{}{
 		"key":      b.token,
@@ -194,9 +231,10 @@ func (b *Bot) sendFirstMsg() {
 	buffer.Write(body)
 	err := b.conn.WriteMessage(websocket.BinaryMessage, buffer.Bytes())
 	if err != nil {
-		b.ERROR("初次接触未成功: ", err)
+		return err
 	}
 	b.DEBUG("发送初次接触包")
+	return nil
 }
 
 func (b *Bot) sendHeartbeat() {
@@ -257,7 +295,7 @@ func (b *Bot) recieve(ctx context.Context) {
 			_, message, err := b.conn.ReadMessage()
 			if err != nil {
 				b.ERROR(err)
-				b.reconnectChan <- struct{}{}
+				b.ReconnectChan <- struct{}{}
 				return
 			}
 			if len(message) <= 16 {
@@ -275,6 +313,11 @@ func (b *Bot) recieve(ctx context.Context) {
 				data := rawBody[:4]
 				value := btoi32(data)
 				b.INFO("当前直播间热度: ", value)
+				if value < int32(b.StayMinHot) {
+					b.WARNING("热度低于设定值")
+					b.ExitChan <- struct{}{}
+					return
+				}
 			case 5:
 				if head.BodyV == WS_BODY_PROTOCOL_VERSION_DEFLATE {
 					body := ZlibParse(rawBody)
@@ -285,7 +328,10 @@ func (b *Bot) recieve(ctx context.Context) {
 						curRawHead := body[offset : offset+16]
 						curHead := GetHeader(curRawHead)
 						curBody := body[offset+16 : offset+int(curHead.PackL)]
-						cmd := getCMD(curBody)
+						cmd, err := getCMD(curBody)
+						if err != nil {
+							b.ERROR("解析消息包错误: ", err)
+						}
 						switch cmd {
 						case "ONLINE_RANK_V2":
 							var msg OnlineRankV2
@@ -353,6 +399,78 @@ func (b *Bot) recieve(ctx context.Context) {
 							var msg RoomBlockMsg
 							_ = json.Unmarshal(curBody, &msg)
 							b.INFO("用户被房管封禁: ", msg.Data.UID)
+						case "ROOM_ADMIN_REVOKE":
+							// {"cmd":"ROOM_ADMIN_REVOKE","msg":"撤销房管","uid":1991698735}
+						case "CUT_OFF":
+							// {"cmd":"CUT_OFF","msg":"\u76f4\u64ad\u5185\u5bb9\u4e0d\u9002\u5b9c","roomid":25234878}
+						case "PLAY_TOGETHER":
+							// {"cmd":"PLAY_TOGETHER","data":{"ruid":95546001,"roomid":22631750,"action":"switch_on","uid":0,"timestamp":1661460719,"message":"","message_type":0,"jump_url":"","web_url":"","apply_number":0,"refresh_tool":false,"cur_fleet_num":0,"max_fleet_num":0}}
+						case "LIVE_PANEL_CHANGE":
+							// {"cmd":"LIVE_PANEL_CHANGE","data":{"type":2,"scatter":{"max":150,"min":5}}}
+						case "LIVE_OPEN_PLATFORM_GAME":
+							// {"cmd":"LIVE_OPEN_PLATFORM_GAME","data":{"msg_type":"game_end","msg_sub_type":"game_end","game_name":"炫彩钓鱼王","game_code":"1659814658645","game_id":"fb2891c8-651d-4de9-8727-154c7b98e4c3","game_status":"","game_msg":"","game_conf":"","interactive_panel_conf":"","timestamp":1661460722,"block_uids":[]}}
+						case "LIVE_PANEL_CHANGE_CONTENT":
+							// {"cmd":"LIVE_PANEL_CHANGE_CONTENT","data":{"setting_list":[{"biz_id":1001,"icon":"http://i0.hdslb.com/bfs/live/afd5bc2424ebf7c7c9c68d71ba5a1f7d08154519.png","title":"分享","note":"分享","weight":100,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1012,"icon":"http://i0.hdslb.com/bfs/live/1e3cb35056ebbcc1af5f08f4fe7916f095db26a5.png","title":"管理员","note":"管理员","weight":36,"status_type":1,"notification":null,"custom":null,"jump_url":"https://live.bilibili.com/p/html/live-app-room-admin/index.html?is_live_half_webview=1#/roomManagement","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1011,"icon":"http://i0.hdslb.com/bfs/live/7dbaf07b4c10182aeb0e7a8eda3273d40bb9b9b5.png","title":"小窗播放","note":"小窗播放","weight":15.001,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1003,"icon":"http://i0.hdslb.com/bfs/live/a5407c843e72d5efb678b649aecd7184f0d68494.png","title":"播放设置","note":"播放设置","weight":9,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1004,"icon":"http://i0.hdslb.com/bfs/live/1a1b3b9819f78df76f66b3657a6be2cc0e9b8853.png","title":"弹幕设置","note":"弹幕设置","weight":8,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1002,"icon":"http://i0.hdslb.com/bfs/live/1b19309441c997d8e9a19ddb939ff6dda2a04a64.png","title":"画质","note":"画质","weight":7,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1005,"icon":"http://i0.hdslb.com/bfs/live/12d66e639a677df2e8b6630a9abe06806acce87d.png","title":"隐藏特效","note":"隐藏特效","weight":6,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1013,"icon":"https://i0.hdslb.com/bfs/live/856061fa98257d996a34850ef4f7a052af6fb3a3.png","title":"清屏","note":"清屏","weight":5,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1007,"icon":"http://i0.hdslb.com/bfs/live/7e25a262e1cdf294a5d6ca2b1b1527ef4f7caf62.png","title":"举报","note":"举报","weight":5,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1009,"icon":"http://i0.hdslb.com/bfs/live/8e41f28e574952208fe73d09d464c8b369a1a4e9.png","title":"反馈","note":"反馈","weight":4,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1008,"icon":"http://i0.hdslb.com/bfs/live/fe04b9ab783d3a0a4798c20303166b07dcdf8f1d.png","title":"投屏","note":"投屏","weight":3,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1006,"icon":"http://i0.hdslb.com/bfs/live/628cdab93480f1f3dfcb4430a1ff08c81c1b6aec.png","title":"仅播声音","note":"仅播声音","weight":2,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1014,"icon":"http://i0.hdslb.com/bfs/live/0884ed6a7c55baf37554c15d79e03c7948421d9b.png","title":"色觉优化","note":"色觉优化","weight":1,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":1010,"icon":"http://i0.hdslb.com/bfs/live/1c8331a2c520093a830df0ebf9b5f58eb28cd22d.png","title":"添至桌面","note":"添至桌面","weight":1,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":1,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0}],"interaction_list":[{"biz_id":5,"icon":"https://i0.hdslb.com/bfs/live/9642030f43c085b5b4ac9f0903ea03ff85d2544c.png","title":"限时 热门榜","note":"未上榜","weight":2,"status_type":1,"notification":null,"custom":[{"icon":"","title":"限时热门榜","note":"未上榜","jump_url":"https://live.bilibili.com/p/html/live-app-hotrank/index.html?clientType=1\u0026area_id=0\u0026parent_area_id=0\u0026second_area_id=0\u0026is_live_half_webview=1\u0026hybrid_rotate_d=1\u0026hybrid_half_ui=1,3,100p,70p,ffffff,0,30,100,12,0;2,2,375,100p,ffffff,0,30,100,0,0;3,3,100p,70p,ffffff,0,30,100,12,0;4,2,375,100p,ffffff,0,30,100,0,0;5,3,100p,70p,ffffff,0,30,100,0,0;6,3,100p,70p,ffffff,0,30,100,0,0;7,3,100p,70p,ffffff,0,30,100,0,0;8,3,100p,70p,ffffff,0,30,100,0,0","status":0,"sub_icon":""}],"jump_url":"https://live.bilibili.com/p/html/live-app-hotrank/index.html?clientType=1\u0026area_id=0\u0026parent_area_id=0\u0026second_area_id=0\u0026is_live_half_webview=1\u0026hybrid_rotate_d=1\u0026hybrid_half_ui=1,3,100p,70p,ffffff,0,30,100,12,0;2,2,375,100p,ffffff,0,30,100,0,0;3,3,100p,70p,ffffff,0,30,100,12,0;4,2,375,100p,ffffff,0,30,100,0,0;5,3,100p,70p,ffffff,0,30,100,0,0;6,3,100p,70p,ffffff,0,30,100,0,0;7,3,100p,70p,ffffff,0,30,100,0,0;8,3,100p,70p,ffffff,0,30,100,0,0","type_id":2,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0}],"outer_list":[{"biz_id":997,"icon":"https://i0.hdslb.com/bfs/live/273904e5c84d293f5f9df5ade5ac0fadc34e9fad.png","title":"送礼","note":"","weight":100,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":2,"tab":null,"dynamic_icon":"https://i0.hdslb.com/bfs/live/a812dfafd427714b3623a352618ca70fa0379c75.webp","sub_icon":"https://i0.hdslb.com/bfs/live/b0b675140c28310a0ff54b05b2fd9a11a5898acf.png","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":33,"icon":"https://i0.hdslb.com/bfs/live/a0e4a9381f9627d2ed89ab67d5ccce1bc1de7ea3.png","title":"购物车","note":"购物车","weight":100,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":2,"tab":null,"dynamic_icon":"","sub_icon":"https://i0.hdslb.com/bfs/live/76b00ae4363ab572be565dbb62fd44d7c6c7d198.png","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":998,"icon":"https://i0.hdslb.com/bfs/live/ec39c5ec3185f58608e4c143f2461726794403b0.png","title":"更多","note":"","weight":99,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":2,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":16,"icon":"https://i0.hdslb.com/bfs/live/024b6050b1cf11ed656a499f013ca14681a131c6.png","title":"表情包","note":"表情包","weight":98,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":2,"tab":null,"dynamic_icon":"","sub_icon":"https://i0.hdslb.com/bfs/live/57b7d3953b5663931c59f7e889cef76950591f03.png","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":30,"icon":"https://s1.hdslb.com/bfs/live/4d6577503048f219aa8c9a3a7b6a1a61fb3ee0ba.png","title":"快捷送礼","note":"快捷送礼","weight":97,"status_type":1,"notification":null,"custom":[{"icon":"https://s1.hdslb.com/bfs/live/4d6577503048f219aa8c9a3a7b6a1a61fb3ee0ba.png","title":"","note":"{\"bubble_text\":\"点击投喂一个%s，让主播感受到你的支持！\",\"desc_text\":\"投喂一个%s支持主播~\",\"duration\":3,\"gift_id\":31036}","jump_url":"","status":0,"sub_icon":"https://s1.hdslb.com/bfs/live/4d6577503048f219aa8c9a3a7b6a1a61fb3ee0ba.png"}],"jump_url":"","type_id":2,"tab":null,"dynamic_icon":"","sub_icon":"https://s1.hdslb.com/bfs/live/4d6577503048f219aa8c9a3a7b6a1a61fb3ee0ba.png","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":2,"icon":" ","title":"语音连麦","note":" ","weight":5,"status_type":1,"notification":null,"custom":[{"icon":"https://i0.hdslb.com/bfs/live/e3a8c212bc493b88a33fe1853a16270e22d9a70b.png","title":"","note":"连麦功能关闭","jump_url":"","status":2,"sub_icon":"https://i0.hdslb.com/bfs/live/e429e283dbd9e25092a5a73b604527a646cbad32.png"},{"icon":"https://i0.hdslb.com/bfs/live/b8cabd73def53d85bd092f4e8b3f9f6534ec2dc6.png","title":"","note":"连麦","jump_url":"","status":1,"sub_icon":"https://i0.hdslb.com/bfs/live/9500b71c99451040e96312a0f60f269f5c6f0100.png"},{"icon":"https://i0.hdslb.com/bfs/live/c25451d846c5c36a56874626c6496743e6c8b726.webp","title":"","note":"等待中","jump_url":"","status":3,"sub_icon":"https://i0.hdslb.com/bfs/live/0a4e8a81ccc673d7985b6a3c9ecc88baaa0c1e35.webp"},{"icon":"https://i0.hdslb.com/bfs/live/bcf5f48883ddbb96c8680bcc9ed2d4c11798e526.webp","title":"","note":"连麦中","jump_url":"","status":4,"sub_icon":"https://i0.hdslb.com/bfs/live/846230df75319bbe171db0e0d18ec5a8a80e514b.webp"}],"jump_url":"","type_id":2,"tab":null,"dynamic_icon":"","sub_icon":"","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0},{"biz_id":3,"icon":"https://i0.hdslb.com/bfs/live/a02f9edd13bf77588ec8ed800cf246fbbc158ff3.png","title":"醒目留言","note":"留言传递心意吧","weight":2.001,"status_type":1,"notification":null,"custom":null,"jump_url":"","type_id":2,"tab":null,"dynamic_icon":"","sub_icon":"https://i0.hdslb.com/bfs/live/da519a9d33dd9cf8d6bb38c481cea9180341abbe.png","panel_icon":"https://i0.hdslb.com/bfs/live/98e692836d408ab7f2b321c717e866a8fd9b3bfd.png","match_entrance":0}],"panel_data":null,"is_fixed":0,"is_match":0,"match_cristina":"","match_icon":"","match_bg_image":""}}
+						case "DANMU_AGGREGATION":
+							// {"cmd":"DANMU_AGGREGATION","data":{"activity_identity":"3092106","activity_source":1,"aggregation_cycle":1,"aggregation_icon":"https://i0.hdslb.com/bfs/live/c8fbaa863bf9099c26b491d06f9efe0c20777721.png","aggregation_num":6,"dmscore":144,"msg":"国服 玄策，双区可带，秒刷秒上。","show_rows":1,"show_time":2,"timestamp":1661461698}}
+						case "PK_BATTLE_FINAL_PROCESS":
+							// {"cmd":"PK_BATTLE_FINAL_PROCESS","data":{"battle_type":1,"pk_frozen_time":1661462395},"pk_id":304995704,"pk_status":201,"timestamp":1661462276}
+						case "PK_BATTLE_SETTLE":
+							// {"cmd":"PK_BATTLE_SETTLE","pk_id":304995704,"pk_status":401,"settle_status":1,"timestamp":1661462396,"data":{"battle_type":1,"result_type":1,"star_light_msg":""},"roomid":"22537565"}
+						case "PK_BATTLE_START":
+							// {"cmd":"ANCHOR_LOT_START","data":{"asset_icon":"https://i0.hdslb.com/bfs/live/627ee2d9e71c682810e7dc4400d5ae2713442c02.png","award_image":"","award_name":"情书","award_num":1,"award_price_text":"价值52电池","award_type":1,"cur_gift_num":0,"current_time":1661462392,"danmu":"舰长包帮打王者+永久车位+指导","gift_id":0,"gift_name":"","gift_num":0,"gift_price":0,"goaway_time":180,"goods_id":-99998,"id":3092118,"is_broadcast":1,"join_type":0,"lot_status":0,"max_time":900,"require_text":"至少成为主播的提督","require_type":3,"require_value":2,"room_id":21710524,"send_gift_ensure":0,"show_panel":1,"start_dont_popup":0,"status":1,"time":899,"url":"https://live.bilibili.com/p/html/live-lottery/anchor-join.html?is_live_half_webview=1\u0026hybrid_biz=live-lottery-anchor\u0026hybrid_half_ui=1,5,100p,100p,000000,0,30,0,0,1;2,5,100p,100p,000000,0,30,0,0,1;3,5,100p,100p,000000,0,30,0,0,1;4,5,100p,100p,000000,0,30,0,0,1;5,5,100p,100p,000000,0,30,0,0,1;6,5,100p,100p,000000,0,30,0,0,1;7,5,100p,100p,000000,0,30,0,0,1;8,5,100p,100p,000000,0,30,0,0,1","web_url":"https://live.bilibili.com/p/html/live-lottery/anchor-join.html"}}
+						case "INTERACTIVE_THE_CHOSEN_ONE":
+							// {"cmd":"INTERACTIVE_THE_CHOSEN_ONE","data":{"id":5872,"status":2,"user_num":0,"smh_num":100,"winner_uid":0,"winner_name":"","delay":30,"start_ts":1661462074,"end_ts":1661462399,"icon_app":"https://i0.hdslb.com/bfs/live/fc09eb17bc674e635f1ac9ab94097f92ebd8d67d.png","icon_web":"https://i0.hdslb.com/bfs/live/d08025c2b8d25d947bcb5af01c754155427f6246.png","h5_url":"https://live.bilibili.com/p/html/live-app-the-chosen-one/user.html?is_live_half_webview=1\u0026hybrid_half_ui=1,5,100p,100p,d56a76,0,30,0,0,0;2,5,100p,100p,d56a76,0,30,0,0,0;3,5,100p,100p,d56a76,0,30,0,0,0;4,5,100p,100p,d56a76,0,30,0,0,0;5,5,100p,100p,d56a76,0,30,0,0,0;6,5,100p,100p,d56a76,0,30,0,0,0;7,5,100p,100p,d56a76,0,30,0,0,0;8,5,100p,100p,d56a76,0,30,0,0,0","new_fans_num":0}}
+						case "ANCHOR_LOT_START":
+							// {"cmd":"ANCHOR_LOT_START","data":{"asset_icon":"https://i0.hdslb.com/bfs/live/627ee2d9e71c682810e7dc4400d5ae2713442c02.png","award_image":"","award_name":"2元红包","award_num":1,"award_type":0,"cur_gift_num":0,"current_time":1661461664,"danmu":"国服玄策，双区可带，秒刷秒上。","gift_id":0,"gift_name":"","gift_num":1,"gift_price":0,"goaway_time":180,"goods_id":-99998,"id":3092106,"is_broadcast":1,"join_type":0,"lot_status":0,"max_time":600,"require_text":"关注主播","require_type":1,"require_value":0,"room_id":23409672,"send_gift_ensure":0,"show_panel":1,"start_dont_popup":0,"status":1,"time":599,"url":"https://live.bilibili.com/p/html/live-lottery/anchor-join.html?is_live_half_webview=1\u0026hybrid_biz=live-lottery-anchor\u0026hybrid_half_ui=1,5,100p,100p,000000,0,30,0,0,1;2,5,100p,100p,000000,0,30,0,0,1;3,5,100p,100p,000000,0,30,0,0,1;4,5,100p,100p,000000,0,30,0,0,1;5,5,100p,100p,000000,0,30,0,0,1;6,5,100p,100p,000000,0,30,0,0,1;7,5,100p,100p,000000,0,30,0,0,1;8,5,100p,100p,000000,0,30,0,0,1","web_url":"https://live.bilibili.com/p/html/live-lottery/anchor-join.html"}}
+						case "ANCHOR_LOT_CHECKSTATUS":
+							// {"cmd":"ANCHOR_LOT_CHECKSTATUS","data":{"id":3092169,"status":4,"uid":436238604}}
+						case "VOICE_JOIN_ROOM_COUNT_INFO":
+							// {"cmd":"VOICE_JOIN_ROOM_COUNT_INFO","data":{"cmd":"","room_id":869833,"root_status":1,"room_status":1,"apply_count":1,"notify_count":0,"red_point":1},"room_id":869833}
+						case "VOICE_JOIN_LIST":
+							// {"cmd":"VOICE_JOIN_LIST","data":{"cmd":"","room_id":869833,"category":1,"apply_count":1,"red_point":1,"refresh":1},"room_id":869833}
+						case "POPULARITY_RED_POCKET_START":
+							// {"cmd":"POPULARITY_RED_POCKET_START","data":{"lot_id":5458200,"sender_uid":1746083,"sender_name":"人鱼A梦","sender_face":"http://i2.hdslb.com/bfs/face/9d5ea62a51fd8254bf52b071e832e635bf842ce7.jpg","join_requirement":1,"danmu":"老板大气！点点红包抽礼物","current_time":1661501281,"start_time":1661501281,"end_time":1661501461,"last_time":180,"remove_time":1661501476,"replace_time":1661501471,"lot_status":1,"h5_url":"https://live.bilibili.com/p/html/live-app-red-envelope/popularity.html?is_live_half_webview=1\u0026hybrid_half_ui=1,5,100p,100p,000000,0,50,0,0,1;2,5,100p,100p,000000,0,50,0,0,1;3,5,100p,100p,000000,0,50,0,0,1;4,5,100p,100p,000000,0,50,0,0,1;5,5,100p,100p,000000,0,50,0,0,1;6,5,100p,100p,000000,0,50,0,0,1;7,5,100p,100p,000000,0,50,0,0,1;8,5,100p,100p,000000,0,50,0,0,1\u0026hybrid_rotate_d=1\u0026hybrid_biz=popularityRedPacket\u0026lotteryId=5458200","user_status":2,"awards":[{"gift_id":31212,"gift_name":"打call","gift_pic":"https://s1.hdslb.com/bfs/live/f75291a0e267425c41e1ce31b5ffd6bfedc6f0b6.png","num":2},{"gift_id":31214,"gift_name":"牛哇","gift_pic":"https://s1.hdslb.com/bfs/live/b8a38b4bd3be120becddfb92650786f00dffad48.png","num":3},{"gift_id":31216,"gift_name":"i了i了","gift_pic":"https://s1.hdslb.com/bfs/live/1157a445487b39c0b7368d91b22290c60fa665b2.png","num":3}],"lot_config_id":3,"total_price":1600,"wait_num":25}}
+						case "TRADING_SCORE":
+							// {"cmd":"TRADING_SCORE","data":{"bubble_show_time":3,"num":5,"score_id":3,"uid":20066851,"update_time":1661501291,"update_type":1}}
+						case "PK_BATTLE_PRE_NEW":
+							// {"cmd":"PK_BATTLE_PRE_NEW","pk_status":101,"pk_id":305002745,"timestamp":1661501302,"data":{"battle_type":1,"match_type":1,"uname":"\u4e8c\u516b__8\u670826\u53f7\u6ee1\u6708\u54e6","face":"http:\/\/i0.hdslb.com\/bfs\/face\/0b71965e95963270e6456bf4e27ff7cb06e553fa.jpg","uid":3461563847543178,"room_id":25570949,"season_id":52,"pre_timer":10,"pk_votes_name":"\u4e71\u6597\u503c","end_win_task":null},"roomid":1604540}
+						case "PK_BATTLE_PRE":
+							// {"cmd":"PK_BATTLE_PRE","pk_status":101,"pk_id":305002745,"timestamp":1661501302,"data":{"battle_type":1,"match_type":1,"uname":"\u4e8c\u516b__8\u670826\u53f7\u6ee1\u6708\u54e6","face":"http:\/\/i0.hdslb.com\/bfs\/face\/0b71965e95963270e6456bf4e27ff7cb06e553fa.jpg","uid":3461563847543178,"room_id":25570949,"season_id":52,"pre_timer":10,"pk_votes_name":"\u4e71\u6597\u503c","end_win_task":null},"roomid":1604540}
+						case "PK_BATTLE_START_NEW":
+							// {"cmd":"PK_BATTLE_START_NEW","pk_id":305002745,"pk_status":201,"timestamp":1661501312,"data":{"battle_type":1,"final_hit_votes":0,"pk_start_time":1661501312,"pk_frozen_time":1661501612,"pk_end_time":1661501622,"pk_votes_type":0,"pk_votes_add":0,"pk_votes_name":"\u4e71\u6597\u503c","star_light_msg":"","pk_countdown":1661501552,"final_conf":{"switch":1,"start_time":1661501432,"end_time":1661501492},"init_info":{"room_id":25570949,"date_streak":0},"match_info":{"room_id":1604540,"date_streak":0}},"roomid":"1604540"}
+						case "HOT_BUY_NUM":
+							// {"cmd":"HOT_BUY_NUM","data":{"goods_id":"1499719178894123008","num":397}}
+						case "GOTO_BUY_FLOW":
+							// {"cmd":"GOTO_BUY_FLOW","data":{"text":"塞**正在去买"}}
+						case "room_admin_entrance":
+							// {"cmd":"room_admin_entrance","dmscore":45,"level":1,"msg":"系统提示：你已被主播设为房管","uid":1743919882}
+						case "ROOM_ADMINS":
+							// {"cmd":"ROOM_ADMINS","uids":[283751299,5724746,230091229,3243360,19704588,37996142,22959012,207534777,24004453,1743919882]}
+						case "SHOPPING_CART_SHOW":
+							// {"cmd":"SHOPPING_CART_SHOW","data":{"status":1}}
+						case "SELECTED_GOODS_INFO":
+							// {"cmd":"SELECTED_GOODS_INFO","data":{"change_type":3,"item":[{"goods_id":"1529022926925815814","goods_name":"搞机所 台式电脑主机 酷睿 i5 12400F/RX6500 XT 电竞 高配 游戏","source":1,"goods_icon":"http://i0.hdslb.com/bfs/e-commerce-goods/93b2fa7163a594e00c14555d828a325a815ba901.jpg","is_pre_sale":0,"activity_info":null,"pre_sale_info":null,"early_bird_info":null,"coupon_discount_price":"","selected_text":"","is_gift_buy":0,"goods_price":"3650","goods_max_price":"","reward_info":null},{"goods_id":"1529022926925815813","goods_name":"搞机所 台式电脑主机 酷睿 i5 12400F/RX6650 XT 电竞 高配 游戏","source":1,"goods_icon":"http://i0.hdslb.com/bfs/e-commerce-goods/8055d0fd05fee1676d063d9c03889fd355e1e5b4.jpg","is_pre_sale":0,"activity_info":null,"pre_sale_info":null,"early_bird_info":null,"coupon_discount_price":"","selected_text":"","is_gift_buy":0,"goods_price":"5199","goods_max_price":"","reward_info":null},{"goods_id":"1529022926925815808","goods_name":"搞机所 台式电脑主机 酷睿i5 12400F/3070Ti 电竞 高配 办公 游戏","source":1,"goods_icon":"http://i0.hdslb.com/bfs/e-commerce-goods/5bf950b11edee9da8d52646b89465298abc0b7ac.jpg","is_pre_sale":0,"activity_info":null,"pre_sale_info":null,"early_bird_info":null,"coupon_discount_price":"","selected_text":"","is_gift_buy":0,"goods_price":"7399","goods_max_price":"","reward_info":null},{"goods_id":"1529022926925815809","goods_name":"搞机所 台式电脑主机 酷睿 i5 12400F/3060 电竞 高配 办公 游戏","source":1,"goods_icon":"http://i0.hdslb.com/bfs/e-commerce-goods/1d3fa00402632828e29241dc95822b7649d53f70.jpg","is_pre_sale":0,"activity_info":null,"pre_sale_info":null,"early_bird_info":null,"coupon_discount_price":"","selected_text":"","is_gift_buy":0,"goods_price":"4950","goods_max_price":"","reward_info":null}],"title":"主播精选"}}
+						case "ROOM_MODULE_DISPLAY":
+							// {"cmd":"ROOM_MODULE_DISPLAY","data":{"timestamp":1661503652,"modules":{"bottom_banner":1,"top_banner":1,"widget_banner":1}}}
+						case "POPULARITY_RED_POCKET_NEW":
+							// {"cmd":"POPULARITY_RED_POCKET_NEW","data":{"lot_id":5461312,"start_time":1661509185,"current_time":1661509185,"wait_num":0,"uname":"直播小电视","uid":1407831746,"action":"送出","num":1,"gift_name":"红包","gift_id":13000,"price":70,"name_color":"","medal_info":{"target_id":0,"special":"","icon_id":0,"anchor_uname":"","anchor_roomid":0,"medal_level":0,"medal_name":"","medal_color":0,"medal_color_start":0,"medal_color_end":0,"medal_color_border":0,"is_lighted":0,"guard_level":0}}}
+						case "RING_STATUS_CHANGE":
+							// {"cmd":"RING_STATUS_CHANGE","data":{"status":0}}
+						case "SUPER_CHAT_MESSAGE_DELETE":
+							// {"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[4892379]},"roomid":22880700}
+						case "SUPER_CHAT_ENTRANCE":
+							// {"cmd":"SUPER_CHAT_ENTRANCE","data":{"status":1,"jump_url":"https:\/\/live.bilibili.com\/p\/html\/live-app-superchat2\/index.html?is_live_half_webview=1&hybrid_half_ui=1,3,100p,70p,ffffff,0,30,100;2,2,375,100p,ffffff,0,30,100;3,3,100p,70p,ffffff,0,30,100;4,2,375,100p,ffffff,0,30,100;5,3,100p,60p,ffffff,0,30,100;6,3,100p,60p,ffffff,0,30,100;7,3,100p,60p,ffffff,0,30,100","icon":"https:\/\/i0.hdslb.com\/bfs\/live\/0a9ebd72c76e9cbede9547386dd453475d4af6fe.png","broadcast_type":0},"roomid":"22330922"}
+						case "PANEL_INTERACTIVE_NOTIFY_CHANGE":
+							// {"cmd":"PANEL_INTERACTIVE_NOTIFY_CHANGE","data":{"biz_id":4,"end_time":300,"icon":"https://i0.hdslb.com/bfs/live/164a37487431ce065981d76afe6c2fb2083facee.png","last_time":5,"level":1,"text":"主播开启预言"}}
+						case "INTERACTIVE_USER":
+							// {"cmd":"INTERACTIVE_USER","data":{"type":1,"value":{"delay":5,"dm_msg":"主播已开启预言玩法，点击直播间底部互动按钮参与","prophet_status":1,"send_msg":1}}}
+						case "SHOPPING_BUBBLES_STYLE":
+							// {"cmd":"SHOPPING_BUBBLES_STYLE","data":{"interval_between_bubbles":10,"interval_between_queues":10,"cycle_time":180,"goods_count":23,"checksum":"4c995f4f70b112575e290bcd69736067","bubbles_list":[{"tag":"giftbuy","name":"福哩购","priority":1,"show_banner":1,"goods_list":["1544207553222549504"]},{"tag":"coupon","name":"亿点券","priority":2,"show_banner":1,"goods_list":["1549576033690148864","1531173479947223040","1537659287350104064","1547771752473309184","1524926140823838720","1524926519791783936","1524926284793348096","1563022395630247936"]},{"tag":"goodsnum","name":"N个宝","priority":6,"show_banner":0,"goods_list":[]},{"tag":"onlyone","name":"快抢啊","priority":7,"show_banner":0,"goods_list":[]}]}}
+						case "SHOPPING_EXPLAIN_CARD":
+							// {"cmd":"SHOPPING_EXPLAIN_CARD","data":{"goods_id":"1531173988422647808","goods_name":"i5 12400F/RTX3060Ti/3070Ti/16G/500G游戏台式电脑主机diy组装机","goods_price":"5599","goods_max_price":"","sale_status":0,"coupon_name":"立减400元","goods_icon":"http://i0.hdslb.com/bfs/e-commerce-goods/2ad6ed6a8effc4a82bdaaf9b0a662956fbb0daac.jpg","status":3,"h5_url":"https://live.bilibili.com/p/html/live-app-ecommerce/index.html?is_live_half_webview=1\u0026hybrid_rotate_d=0\u0026hybrid_half_ui=1,3,100p,70p,0,0,30,100,12,0;2,2,375,100p,0,0,30,100,0,0;3,3,100p,70p,0,0,30,100,12,0;4,2,375,100p,0,0,30,100,0,0;5,3,100p,70p,0,0,30,100,12,0;6,3,100p,70p,0,0,30,100,12,0;7,3,100p,70p,0,0,30,100,12,0\u0026web_type=1\u0026source=1\u0026goods_id=1531173988422647808#/taobao","source":1,"timestamp":1661512808,"is_pre_sale":0,"activity_info":null,"pre_sale_info":null,"early_bird_info":null,"unique_id":"1563124129732079616","uid":297991412,"selling_point":"","coupon_discount_price":"5199.00","sei_status":0,"gift_buy_info":null,"reward_info":null,"is_exclusive":false,"coupon_id":""}}
+						case "ACTIVITY_BANNER_CHANGE":
+							// {"cmd":"ACTIVITY_BANNER_CHANGE","data":{"list":[{"id":2169,"timestamp":1661514300,"position":"bottom","activity_title":"第五人格新监管者隐士活动","cover":"https://i0.hdslb.com/bfs/live/e7870123c939a3b4b4c0665166fae07380d71e84.png","jump_url":"https://www.bilibili.com/blackboard/dynamic/309491?-Abrowser=live\u0026is_live_half_webview=1\u0026hybrid_rotate_d=1\u0026is_cling_player=1\u0026hybrid_half_ui=1,3,100p,70p,0,1,30,100;2,2,375,100p,0,1,30,100;3,3,100p,70p,0,1,30,100;4,2,375,100p,0,1,30,100;5,3,100p,70p,0,1,30,100;6,3,100p,70p,0,1,30,100;7,3,100p,70p,0,1,30,100;8,3,100p,70p,0,1,30,100","is_close":1,"action":"update"}]}}
 						default:
 							log.Printf("收到未解析的命令: %s\n %s", cmd, curBody)
 						}
@@ -406,23 +524,25 @@ func (b *Bot) handleGuardBuy(data []byte) {
 	b.HandleDanmuMsg(msg)
 }
 
-func getCMD(curBody []byte) string {
+func getCMD(curBody []byte) (string, error) {
 	var msg Msg
 	err := json.Unmarshal(curBody, &msg)
 	if err != nil {
-		log.Fatalln(err)
+		return "", err
 	}
-	return msg.Cmd
+	return msg.Cmd, nil
 }
 
 func (b *Bot) getDanmakuInfo() (*DanmakuInfoResp, error) {
 	b.DEBUG("弹幕池情报请求")
 	resp, err := GetResponse(fmt.Sprintf(b.infoURL, b.RoomID))
+	defer resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
 	var danmakuInfoResp DanmakuInfoResp
-	err2 := json.NewDecoder(resp.Body).Decode(&danmakuInfoResp)
+	decoder := json.NewDecoder(resp.Body)
+	err2 := decoder.Decode(&danmakuInfoResp)
 	if err2 != nil {
 		return nil, err
 	}

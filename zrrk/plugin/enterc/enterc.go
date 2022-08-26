@@ -4,9 +4,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/jannchie/zrrk/zrrk"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"jannchie.com/zrrk/zrrk"
 )
 
 var DB *gorm.DB
