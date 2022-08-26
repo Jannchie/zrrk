@@ -11,8 +11,9 @@ import (
 )
 
 type GiftPlugin struct {
-	RoomID int
-	DB     *gorm.DB
+	RoomID   int
+	DB       *gorm.DB
+	giftChan chan LiveRoomGift `gorm:"-"`
 }
 
 type LiveRoomGift struct {
@@ -31,7 +32,26 @@ func New() *GiftPlugin {
 	if err != nil {
 		log.Println(err)
 	}
-	p := GiftPlugin{DB: db}
+	p := GiftPlugin{
+		DB:       db,
+		giftChan: make(chan LiveRoomGift, 100),
+	}
+	go func() {
+		var giftArray []LiveRoomGift
+		ticker := time.NewTicker(time.Second * 1)
+		for {
+			select {
+			case gift := <-p.giftChan:
+				giftArray = append(giftArray, gift)
+			case <-ticker.C:
+				if len(giftArray) > 0 {
+					if err = p.DB.Create(giftArray).Error; err == nil {
+						giftArray = []LiveRoomGift{}
+					}
+				}
+			}
+		}
+	}()
 	return &p
 }
 
@@ -56,6 +76,6 @@ func (p *GiftPlugin) HandleData(input interface{}, channel chan<- string) {
 			Price:  data.Gift.Price,
 			UID:    data.User.UID,
 		}
-		_ = p.DB.Create(&liveRoomGift)
+		p.giftChan <- liveRoomGift
 	}
 }

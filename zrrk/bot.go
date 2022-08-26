@@ -352,7 +352,7 @@ func (b *Bot) recieve(ctx context.Context) {
 						case "ONLINE_RANK_TOP3":
 							b.DEBUG("高能榜发生变动")
 						case "ROOM_CHANGE":
-							b.HIGHLIGHT("修改了房间信息")
+							b.INFO("修改了房间信息")
 						case "GUARD_BUY":
 							var msg GuardBuy
 							_ = json.Unmarshal(curBody, &msg)
