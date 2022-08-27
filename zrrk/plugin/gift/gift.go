@@ -39,6 +39,7 @@ func New() *GiftPlugin {
 	go func() {
 		var giftArray []LiveRoomGift
 		ticker := time.NewTicker(time.Second * 1)
+		defer ticker.Stop()
 		for {
 			select {
 			case gift := <-p.giftChan:

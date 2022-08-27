@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -137,7 +138,13 @@ func (b *Bot) Connect() {
 			cancel()
 			return
 		}
-		b.setHostAndToken(info)
+		err = b.setHostAndToken(info)
+		if err != nil {
+			b.ERROR("无法获取到信息: ", err)
+			cancel()
+			<-time.After(time.Second * 5)
+			continue
+		}
 		err = b.makeConnection()
 		if err != nil {
 			b.ERROR("建立该连接失败: ", err)
@@ -174,6 +181,7 @@ func (b *Bot) Connect() {
 		// TODO: 优先消化 Primary，如果没有，则消化 Secondary
 		go func(ctx context.Context) {
 			ticker := time.NewTicker(time.Second * 10)
+			defer ticker.Stop()
 			for {
 				select {
 				case msg := <-b.outChannel:
@@ -211,9 +219,13 @@ func (b *Bot) makeConnection() error {
 	return nil
 }
 
-func (b *Bot) setHostAndToken(info *DanmakuInfoResp) {
+func (b *Bot) setHostAndToken(info *DanmakuInfoResp) error {
+	if len(info.Data.HostList) == 0 {
+		return errors.New("无法获取到主播信息")
+	}
 	b.host = info.Data.HostList[0].Host
 	b.token = info.Data.Token
+	return nil
 }
 
 func (b *Bot) sendFirstMsg() error {
@@ -253,6 +265,7 @@ func (b *Bot) sendHeartbeat() {
 func (b *Bot) send(ctx context.Context) {
 	interrupt := make(chan os.Signal, 1)
 	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
 	b.DEBUG("发送协程已启动")
 	defer func() {
 		b.DEBUG("发送协程已退出")
@@ -485,7 +498,9 @@ func (b *Bot) recieve(ctx context.Context) {
 						case "VIDEO_CONNECTION_JOIN_END":
 							//  {"cmd":"VIDEO_CONNECTION_JOIN_END","data":{"channel_id":"72057594038846994","start_at":1661520034,"toast":"主播结束了与澈屿Don的连线.","current_time":1661520034},"roomid":23144336}
 						case "VIDEO_CONNECTION_MSG":
-						  // {"cmd":"VIDEO_CONNECTION_MSG","data":{"channel_id":"72057594038846994","current_time":1661520034,"dmscore":4,"toast":"主播结束了视频连线"}}
+							// {"cmd":"VIDEO_CONNECTION_MSG","data":{"channel_id":"72057594038846994","current_time":1661520034,"dmscore":4,"toast":"主播结束了视频连线"}}
+						case "WIDGET_WISH_LIST":
+							// {"cmd":"WIDGET_WISH_LIST","data":{"wish":[{"type":3,"gift_id":10003,"gift_name":"舰长","gift_img":"https://i0.hdslb.com/bfs/live/f1be2a2d5b227ce72641de1ad64bcc7f9e4111c3.png","gift_price":198000,"target_num":2,"current_num":0},{"type":2,"gift_id":31164,"gift_name":"粉丝团灯牌","gift_img":"https://s1.hdslb.com/bfs/live/cbed3bb0a894369b49ceaf0b5337b4491b75ac42.png","gift_price":1000,"target_num":88,"current_num":22},{"type":2,"gift_id":31075,"gift_name":"守护之翼","gift_img":"https://s1.hdslb.com/bfs/live/1d7d973972e70cad7e97478b3c8d20b0faafd0dc.png","gift_price":200000,"target_num":3,"current_num":3}],"wish_status":1,"sid":929,"wish_status_info":[{"wish_status_msg":"设定心愿","wish_status_img":"https://i0.hdslb.com/bfs/live/38f82bac32794e79776f7371269453652bd58a87.png","wish_status":0},{"wish_status_msg":"达成","wish_status_img":"https://i0.hdslb.com/bfs/live/1dae635924437239fc69e561a1a9467508521249.png","wish_status":2},{"wish_status_msg":"收集失败","wish_status_img":"https://i0.hdslb.com/bfs/live/3bbd30fdd32d085cc90e9ccd98c65a886dca9a8f.png","wish_status":3}],"wish_name":"心愿"}}
 						default:
 							log.Printf("收到未解析的命令: %s\n %s", cmd, curBody)
 						}
