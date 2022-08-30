@@ -200,7 +200,7 @@ func (b *Bot) Connect() {
 		case <-b.ReconnectChan:
 			b.WARNING("检测到重连信号")
 			cancel()
-			b.HIGHLIGHT(LogWarn, "重新接续直播间")
+			b.HIGHLIGHT("重新接续直播间")
 		case <-b.ExitChan:
 			b.WARNING("检测到退出信号")
 			cancel()
@@ -220,7 +220,7 @@ func (b *Bot) makeConnection() error {
 }
 
 func (b *Bot) setHostAndToken(info *DanmakuInfoResp) error {
-	if len(info.Data.HostList) == 0 {
+	if info.Data.HostList == nil || len(info.Data.HostList) == 0 {
 		return errors.New("无法获取到主播信息")
 	}
 	b.host = info.Data.HostList[0].Host

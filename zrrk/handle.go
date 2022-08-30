@@ -43,6 +43,7 @@ func (b *Bot) HandleUserToastMsg(msg UserToastMsg) {
 		msg.Data.ToastMsg, msg.Data.GuardLevel, msg.Data.RoleName, msg.Data.Num*msg.Data.Price/1000))
 	gm := GiftData{
 		User: ud,
+		RoomID: b.RoomID,
 		Gift: Gift{
 			ID:       msg.Data.EffectID,
 			Name:     msg.Data.RoleName,
@@ -60,17 +61,6 @@ func (b *Bot) HandleGuardBuy(msg GuardBuy) {
 		UID:  msg.Data.UID,
 	}
 	b.HIGHLIGHT(fmt.Sprintf("%s：上舰了！舰长等级Lv.%d, [%s] 价值: %dRMB", ud.String(), msg.Data.GuardLevel, msg.Data.GiftName, msg.Data.Num*msg.Data.Price/1000))
-	// gm := GiftData{
-	// 	User: ud,
-	// 	Gift: Gift{
-	// 		ID:       msg.Data.GiftID,
-	// 		Name:     msg.Data.GiftName,
-	// 		Count:    msg.Data.Num,
-	// 		Price:    msg.Data.Price,
-	// 		Currency: "GOLD",
-	// 	},
-	// }
-	// b.dataChan <- gm
 }
 
 func (b *Bot) HandleSendGift(msg SendGift) {
@@ -96,8 +86,10 @@ func (b *Bot) HandleSendGift(msg SendGift) {
 		currency = "GOLD"
 		price = msg.Data.Price
 	}
+
 	gm := GiftData{
-		User: ud,
+		RoomID: b.RoomID,
+		User:   ud,
 		Gift: Gift{
 			ID:       msg.Data.GiftID,
 			Name:     msg.Data.GiftName,
@@ -156,7 +148,8 @@ func (b *Bot) handleSC(msg SuperChatMessage) {
 	}
 	b.HIGHLIGHT(fmt.Sprintf("%s：<%d RMB> SC ** %s **", ud.String(), msg.Data.Price, msg.Data.Message))
 	b.dataChan <- GiftData{
-		User: ud,
+		RoomID: b.RoomID,
+		User:   ud,
 		Gift: Gift{
 			ID:       msg.Data.Gift.GiftID,
 			Name:     msg.Data.Gift.GiftName,

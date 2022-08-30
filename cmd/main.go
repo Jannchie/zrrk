@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -8,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jannchie/zrrk/cmd/aggregate"
 	"github.com/jannchie/zrrk/zrrk"
 	"github.com/jannchie/zrrk/zrrk/plugin/gift"
 	"gorm.io/driver/postgres"
@@ -20,15 +22,10 @@ func main() {
 	}()
 	log.SetFlags(log.LstdFlags)
 	log.SetOutput(os.Stdout)
-
+	go aggregate.Aggregation()
+	ctx := context.Background()
 	syncMap := sync.Map{}
 	var connectCount uint64
-
-	dsn := os.Getenv("BILIBILI_DSN")
-	db, _ := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	sql := `SELECT room_id FROM livers WHERE live_status = 1`
-	giftPlugin := gift.New()
-
 	go func() {
 		for {
 			select {
@@ -37,7 +34,16 @@ func main() {
 			}
 		}
 	}()
+	go taskSender(&syncMap, &connectCount, `SELECT room_id FROM livers WHERE live_status = 1`, time.Second/32)
+	go taskSender(&syncMap, &connectCount, `SELECT room_id FROM livers WHERE live_status = 0`, time.Second/4)
+	<-ctx.Done()
+}
 
+func taskSender(syncMap *sync.Map, connectCount *uint64, sql string, interval time.Duration) {
+	dsn := os.Getenv("BILIBILI_DSN")
+	db, _ := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db.AutoMigrate(&gift.LiveRoomGift{})
+	giftPlugin := gift.New()
 	for {
 		rows, _ := db.Raw(sql).Rows()
 		for rows.Next() {
@@ -48,7 +54,7 @@ func main() {
 				continue
 			}
 			m := sync.Mutex{}
-			// if contain
+
 			if _, ok := syncMap.Load(roomID); ok {
 				continue
 			}
@@ -61,11 +67,11 @@ func main() {
 				syncMap.Store(roomID, bot)
 				defer syncMap.Delete(roomID)
 				bot.AddPlugin(giftPlugin)
-				connectCount++
+				*connectCount++
 				bot.Connect()
-				connectCount--
+				*connectCount--
 			}(roomID)
-			<-time.After(time.Second / 32)
+			<-time.After(interval)
 		}
 		<-time.After(time.Second * 5)
 	}

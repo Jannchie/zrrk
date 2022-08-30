@@ -49,8 +49,9 @@ type RoomBlockMsg struct {
 }
 
 type GiftData struct {
-	User User `json:"user"`
-	Gift Gift `json:"gift"`
+	RoomID int  `json:"roomid"`
+	User   User `json:"user"`
+	Gift   Gift `json:"gift"`
 }
 type Medal struct {
 	Title string `json:"title"`

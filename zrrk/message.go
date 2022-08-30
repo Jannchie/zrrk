@@ -379,6 +379,7 @@ type UserToastMsg struct {
 	} `json:"data"`
 }
 
+
 type NoticeMsg struct {
 	Cmd  string `json:"cmd"`
 	ID   int    `json:"id"`

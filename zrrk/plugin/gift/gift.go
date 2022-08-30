@@ -17,7 +17,7 @@ type GiftPlugin struct {
 }
 
 type LiveRoomGift struct {
-	ID        int       `gorm:"primaryKey"`
+	ID        int64     `gorm:"primaryKey"`
 	RoomID    int       `gorm:"index"`
 	GiftID    int       ``
 	Price     int       ``
@@ -46,8 +46,10 @@ func New() *GiftPlugin {
 				giftArray = append(giftArray, gift)
 			case <-ticker.C:
 				if len(giftArray) > 0 {
-					if err = p.DB.Create(giftArray).Error; err == nil {
+					if err = p.DB.Create(&giftArray).Error; err == nil {
 						giftArray = []LiveRoomGift{}
+					} else {
+						log.Println(err)
 					}
 				}
 			}
@@ -71,7 +73,7 @@ func (p *GiftPlugin) HandleData(input interface{}, channel chan<- string) {
 	}
 	if data.Gift.Currency == "GOLD" {
 		var liveRoomGift = LiveRoomGift{
-			RoomID: p.RoomID,
+			RoomID: data.RoomID,
 			GiftID: data.Gift.ID,
 			Count:  data.Gift.Count,
 			Price:  data.Gift.Price,
