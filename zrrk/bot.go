@@ -220,7 +220,7 @@ func (b *Bot) makeConnection() error {
 }
 
 func (b *Bot) setHostAndToken(info *DanmakuInfoResp) error {
-	if info.Data.HostList == nil || len(info.Data.HostList) == 0 {
+	if info == nil || info.Data.HostList == nil || len(info.Data.HostList) == 0 {
 		return errors.New("无法获取到主播信息")
 	}
 	b.host = info.Data.HostList[0].Host
