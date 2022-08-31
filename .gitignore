@@ -4,3 +4,4 @@
 *.db
 *.exe
 .ps1
+.env

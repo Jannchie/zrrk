@@ -12,16 +12,30 @@ import (
 	"github.com/jannchie/zrrk/cmd/aggregate"
 	"github.com/jannchie/zrrk/zrrk"
 	"github.com/jannchie/zrrk/zrrk/plugin/gift"
+	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 func main() {
+	log.SetFlags(log.LstdFlags)
+	log.SetOutput(os.Stdout)
+	err := godotenv.Load()
+	if err != nil {
+		log.Panic(err)
+	}
+	go func() {
+		heartBeatURL := os.Getenv("HEART_BEAT_URL")
+		for {
+			http.Get(heartBeatURL)
+			time.Sleep(time.Second * 5)
+		}
+	}()
+
 	go func() {
 		log.Println(http.ListenAndServe(":6060", nil))
 	}()
-	log.SetFlags(log.LstdFlags)
-	log.SetOutput(os.Stdout)
+
 	go aggregate.Aggregation()
 	ctx := context.Background()
 	syncMap := sync.Map{}
