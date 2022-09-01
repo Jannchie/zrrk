@@ -2,12 +2,13 @@ version: "3"
 name: "bili-live-spider"
 services:
   proxy:
+    network_mode: "host"
     restart: always
     deploy:
       resources:
         limits:
-          cpus: "0.002"
-          memory: "30M"
+          cpus: "0.05"
+          memory: "50M"
       replicas: 6
     image: dperson/torproxy
     expose:
@@ -19,3 +20,6 @@ services:
       PASSWORD: 123456
   zrrk:
     build: .
+    network_mode: "host"
+    links:
+      - "proxy:proxy"
