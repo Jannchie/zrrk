@@ -1,6 +1,7 @@
 package aggregate
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -35,66 +36,78 @@ func Aggregation() {
 	for {
 		select {
 		case <-ticker.C:
-			rows, err := db.Raw("select distinct room_id from live_room_gifts where created_at < ?", time.Now().Add(-time.Minute*10)).Rows()
-			if err != nil {
-				log.Panic(err)
-			}
-			for rows.Next() {
-				var roomID int
-				err := rows.Scan(&roomID)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				roomRows, err := db.Raw("select * from live_room_gifts where room_id = ? and created_at < ? order by created_at", roomID, time.Now().Add(-time.Minute*10)).Rows()
-				var startTime time.Time
-				var maxTime time.Time
-				dataList := []LiveRoomGiftAggregation{}
-				data := LiveRoomGiftAggregation{}
-				shouldDelete := []gift.LiveRoomGift{}
-				for roomRows.Next() {
-					var roomGift gift.LiveRoomGift
-					err := db.ScanRows(roomRows, &roomGift)
-					if err != nil {
-						log.Println(err)
-						continue
-					}
-					if startTime.IsZero() {
-						startTime = roomGift.CreatedAt.Truncate(time.Minute * 5)
-					}
-					if roomGift.CreatedAt.Truncate(time.Minute * 5).Equal(startTime) {
-						data.Price += (roomGift.Price * roomGift.Count)
-						data.Count += roomGift.Count
-						data.RoomID = roomGift.RoomID
-						data.Timestamp = startTime
-					} else {
-						startTime = roomGift.CreatedAt.Truncate(time.Minute * 5)
-						dataList = append(dataList, data)
-						data = LiveRoomGiftAggregation{}
-						data.Price += (roomGift.Price * roomGift.Count)
-						data.Count += roomGift.Count
-						data.RoomID = roomGift.RoomID
-						data.Timestamp = startTime
-					}
-					shouldDelete = append(shouldDelete, roomGift)
-					if maxTime.IsZero() || roomGift.CreatedAt.After(maxTime) {
-						maxTime = roomGift.CreatedAt
-					}
-				}
-				if !data.Timestamp.IsZero() {
-					dataList = append(dataList, data)
-				}
-				if len(shouldDelete) == 0 {
-					continue
-				}
-				if err := db.Create(dataList).Error; err != nil {
-					log.Println(err)
-				}
-				if err := db.Where("created_at <= ? and room_id = ?", maxTime, roomID).Delete(&gift.LiveRoomGift{}).Error; err != nil {
-					log.Println(err)
-				}
-			}
+			aggregate(db)
 		}
 	}
 
+}
+
+func aggregate(db *gorm.DB) {
+	ctx := context.Background()
+	ctxWithCancel, cancel := context.WithCancel(ctx)
+	defer func() {
+		cancel()
+		if err := recover(); err != nil {
+			log.Println(err)
+		}
+	}()
+	rows, err := db.WithContext(ctxWithCancel).Raw("select distinct room_id from live_room_gifts where created_at < ?", time.Now().Add(-time.Minute*10)).Rows()
+	if err != nil {
+		log.Panic(err)
+	}
+	for rows.Next() {
+		var roomID int
+		err := rows.Scan(&roomID)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		roomRows, err := db.WithContext(ctxWithCancel).Raw("select * from live_room_gifts where room_id = ? and created_at < ? order by created_at", roomID, time.Now().Add(-time.Minute*10)).Rows()
+		var startTime time.Time
+		var maxTime time.Time
+		dataList := []LiveRoomGiftAggregation{}
+		data := LiveRoomGiftAggregation{}
+		shouldDelete := []gift.LiveRoomGift{}
+		for roomRows.Next() {
+			var roomGift gift.LiveRoomGift
+			err := db.WithContext(ctxWithCancel).ScanRows(roomRows, &roomGift)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			if startTime.IsZero() {
+				startTime = roomGift.CreatedAt.Truncate(time.Minute * 5)
+			}
+			if roomGift.CreatedAt.Truncate(time.Minute * 5).Equal(startTime) {
+				data.Price += (roomGift.Price * roomGift.Count)
+				data.Count += roomGift.Count
+				data.RoomID = roomGift.RoomID
+				data.Timestamp = startTime
+			} else {
+				startTime = roomGift.CreatedAt.Truncate(time.Minute * 5)
+				dataList = append(dataList, data)
+				data = LiveRoomGiftAggregation{}
+				data.Price += (roomGift.Price * roomGift.Count)
+				data.Count += roomGift.Count
+				data.RoomID = roomGift.RoomID
+				data.Timestamp = startTime
+			}
+			shouldDelete = append(shouldDelete, roomGift)
+			if maxTime.IsZero() || roomGift.CreatedAt.After(maxTime) {
+				maxTime = roomGift.CreatedAt
+			}
+		}
+		if !data.Timestamp.IsZero() {
+			dataList = append(dataList, data)
+		}
+		if len(shouldDelete) == 0 {
+			continue
+		}
+		if err := db.WithContext(ctxWithCancel).Create(dataList).Error; err != nil {
+			log.Println(err)
+		}
+		if err := db.WithContext(ctxWithCancel).Where("created_at <= ? and room_id = ?", maxTime, roomID).Delete(&gift.LiveRoomGift{}).Error; err != nil {
+			log.Println(err)
+		}
+	}
 }
