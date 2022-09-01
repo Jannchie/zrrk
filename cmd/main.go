@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -60,33 +61,41 @@ func taskSender(syncMap *sync.Map, connectCount *uint64, sql string, interval ti
 	giftPlugin := gift.New()
 	for {
 		rows, _ := db.Raw(sql).Rows()
-		for rows.Next() {
-			var roomID int
-			err := rows.Scan(&roomID)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			m := sync.Mutex{}
-
-			if _, ok := syncMap.Load(roomID); ok {
-				continue
-			}
-			go func(roomID int) {
-				bot := zrrk.Default(&m, &zrrk.BotConfig{
-					RoomID:     roomID,
-					StayMinHot: 200,
-					LogLevel:   zrrk.LogHighLight,
-				})
-				syncMap.Store(roomID, bot)
-				defer syncMap.Delete(roomID)
-				bot.AddPlugin(giftPlugin)
-				*connectCount++
-				bot.Connect()
-				*connectCount--
-			}(roomID)
-			<-time.After(interval)
-		}
+		createBotIfNotCreated(rows, syncMap, giftPlugin, connectCount, interval)
 		<-time.After(time.Second * 5)
+	}
+}
+
+func createBotIfNotCreated(rows *sql.Rows, syncMap *sync.Map, giftPlugin *gift.GiftPlugin, connectCount *uint64, interval time.Duration) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println(err)
+		}
+	}()
+	for rows.Next() {
+		var roomID int
+		err := rows.Scan(&roomID)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		if _, ok := syncMap.Load(roomID); ok {
+			continue
+		}
+		go func(roomID int) {
+			m := sync.Mutex{}
+			bot := zrrk.Default(&m, &zrrk.BotConfig{
+				RoomID:     roomID,
+				StayMinHot: 200,
+				LogLevel:   zrrk.LogHighLight,
+			})
+			syncMap.Store(roomID, bot)
+			defer syncMap.Delete(roomID)
+			bot.AddPlugin(giftPlugin)
+			*connectCount++
+			bot.Connect()
+			*connectCount--
+		}(roomID)
+		<-time.After(interval)
 	}
 }
