@@ -50,6 +50,8 @@ func aggregate(db *gorm.DB) {
 		if err := recover(); err != nil {
 			log.Println(err)
 		}
+		<-ctxWithCancel.Done()
+		<-time.After(time.Second * 5)
 	}()
 	rows, err := db.WithContext(ctxWithCancel).Raw("select distinct room_id from live_room_gifts where created_at < ?", time.Now().Add(-time.Minute*10)).Rows()
 	if err != nil {

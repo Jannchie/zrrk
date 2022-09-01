@@ -9,10 +9,14 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
+
+	"golang.org/x/net/proxy"
 )
 
 type BiliHeader struct {
@@ -51,8 +55,27 @@ func IsSameDay(t time.Time) bool {
 	return isSameDay
 }
 
+func NewClient() (*http.Client, error) {
+	proxyURL := os.Getenv("PROXY_URL")
+	if proxyURL == "" {
+		return http.DefaultClient, nil
+	}
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		return nil, err
+	}
+	d, err := proxy.FromURL(u, proxy.Direct)
+	if err != nil {
+		return nil, err
+	}
+	t := &http.Transport{Dial: d.Dial}
+	return &http.Client{Transport: t}, nil
+}
 func GetResponse(targetURL string) (*http.Response, error) {
-	client := &http.Client{}
+	client, err := NewClient()
+	if err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
 		return nil, err
