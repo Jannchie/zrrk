@@ -1,0 +1,21 @@
+version: "3"
+name: "bili-live-spider"
+services:
+  proxy:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.002"
+          memory: "30M"
+      replicas: 6
+    image: dperson/torproxy
+    expose:
+      - 9050
+      - 9051
+    environment:
+      TOR_NewCircuitPeriod: 30
+      TOR_MaxCircuitDirtiness: 30
+      PASSWORD: 123456
+  zrrk:
+    build: .

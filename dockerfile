@@ -12,5 +12,5 @@ RUN --mount=type=cache,target=/root/.cache/go-build go build -o /out/main ./cmd/
 FROM alpine:latest as prod
 
 EXPOSE 6060
-COPY --from=builder /out/main /
+COPY --from=builder /out/main /app/.env /
 CMD /main -h $HOST -d "$DSN"
