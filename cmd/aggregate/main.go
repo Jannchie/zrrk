@@ -3,7 +3,6 @@ package aggregate
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 	"time"
 
@@ -21,9 +20,6 @@ type LiveRoomGiftAggregation struct {
 }
 
 func Aggregation() {
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
 	log.SetFlags(log.LstdFlags)
 	log.SetOutput(os.Stdout)
 	dsn := os.Getenv("BILIBILI_DSN")
