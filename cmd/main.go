@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -60,18 +59,23 @@ func taskSender(syncMap *sync.Map, connectCount *uint64, sql string, interval ti
 	db.AutoMigrate(&gift.LiveRoomGift{})
 	giftPlugin := gift.New()
 	for {
-		rows, _ := db.Raw(sql).Rows()
-		createBotIfNotCreated(rows, syncMap, giftPlugin, connectCount, interval)
+		createBotIfNotCreated(db, sql, syncMap, giftPlugin, connectCount, interval)
 		<-time.After(time.Second * 5)
 	}
 }
 
-func createBotIfNotCreated(rows *sql.Rows, syncMap *sync.Map, giftPlugin *gift.GiftPlugin, connectCount *uint64, interval time.Duration) {
+func createBotIfNotCreated(db *gorm.DB, sql string, syncMap *sync.Map, giftPlugin *gift.GiftPlugin, connectCount *uint64, interval time.Duration) {
+	ctx := context.Background()
+	ctxWithCancel, cancel := context.WithCancel(ctx)
 	defer func() {
+		cancel()
 		if err := recover(); err != nil {
 			log.Println(err)
 		}
+		<-ctxWithCancel.Done()
+		<-time.After(time.Second * 5)
 	}()
+	rows, _ := db.WithContext(ctxWithCancel).Raw(sql).Rows()
 	for rows.Next() {
 		var roomID int
 		err := rows.Scan(&roomID)
