@@ -39,10 +39,10 @@ func (b *Bot) HandleUserToastMsg(msg UserToastMsg) {
 		Name: msg.Data.Username,
 		UID:  msg.Data.UID,
 	}
-	b.HIGHLIGHT(fmt.Sprintf("%s：%s！舰长等级Lv.%d, [%s] 价值: %dRMB", ud.String(),
+	b.GIFT(fmt.Sprintf("%s：%s！舰长等级Lv.%d, [%s] 价值: %dRMB", ud.String(),
 		msg.Data.ToastMsg, msg.Data.GuardLevel, msg.Data.RoleName, msg.Data.Num*msg.Data.Price/1000))
 	gm := GiftData{
-		User: ud,
+		User:   ud,
 		RoomID: b.RoomID,
 		Gift: Gift{
 			ID:       msg.Data.EffectID,
@@ -76,7 +76,11 @@ func (b *Bot) HandleSendGift(msg SendGift) {
 	if msg.Data.CoinType == "silver" && (msg.Data.Price > 0) {
 		b.GIFT(fmt.Sprintf("%s：%s了 %d 个 %s, [SILVER] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Num*msg.Data.Price))
 	} else if (msg.Data.CoinType == "gold") && (msg.Data.Price > 0) {
-		b.HIGHLIGHT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %.1fRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, float64(msg.Data.Num*msg.Data.Price)/1000))
+		if msg.Data.Price > 100000 {
+			b.HIGHLIGHT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %.1fRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, float64(msg.Data.Num*msg.Data.Price)/1000))
+		} else {
+			b.GIFT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %.1fRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, float64(msg.Data.Num*msg.Data.Price)/1000))
+		}
 	} else {
 		b.DEBUG(fmt.Sprintf("%s：%s了 %d 个 %s, [OTHERS] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Num*msg.Data.Price))
 	}

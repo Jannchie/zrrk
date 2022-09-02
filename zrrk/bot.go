@@ -134,8 +134,8 @@ func (b *Bot) Connect() {
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
 		info, err := b.getDanmakuInfo()
-		if err != nil || info.Code == -412 {
-			b.ERROR("无法获取到信息: ", err, info.Code)
+		if err != nil {
+			b.ERROR("无法获取到信息: ", err)
 			cancel()
 			<-time.After(time.Second * 5)
 			continue
@@ -207,9 +207,9 @@ func (b *Bot) Connect() {
 			b.HIGHLIGHT("重新接续直播间")
 		case <-b.ExitChan:
 			b.IsConnecting = false
-			b.HIGHLIGHT("检测到退出信号")
+			b.INFO("检测到退出信号")
 			cancel()
-			b.HIGHLIGHT("已经退出直播间")
+			b.INFO("已经退出直播间")
 			return
 		}
 	}
@@ -333,7 +333,7 @@ func (b *Bot) recieve(ctx context.Context) {
 				value := btoi32(data)
 				b.INFO("当前直播间热度: ", value)
 				if value < int32(b.StayMinHot) {
-					b.WARNING("热度低于设定值")
+					b.ERROR("热度低于设定值")
 					b.ExitChan <- struct{}{}
 					return
 				}
