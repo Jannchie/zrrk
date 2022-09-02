@@ -2,6 +2,11 @@ version: "3"
 name: "bili-live-spider"
 services:
   proxy:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     network_mode: "host"
     restart: always
     deploy:
@@ -19,6 +24,11 @@ services:
       TOR_MaxCircuitDirtiness: 30
       PASSWORD: 123456
   zrrk:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     build: .
     network_mode: "host"
     links:

@@ -32,14 +32,15 @@ type Bot struct {
 	Lock          *sync.Mutex
 	StayMinHot    int32
 	LogLevel      int
+	IsConnecting  bool
 }
 
 const (
 	LogHighLight = 5
-	LogGift      = 4
-	LogInfo      = 3
-	LogWarn      = 2
-	LogErr       = 1
+	LogErr       = 4
+	LogGift      = 3
+	LogInfo      = 2
+	LogWarn      = 1
 	LogDebug     = 0
 )
 
@@ -133,10 +134,11 @@ func (b *Bot) Connect() {
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
 		info, err := b.getDanmakuInfo()
-		if err != nil {
-			b.ERROR("无法获取到信息: ", err)
+		if err != nil || info.Code == -412 {
+			b.ERROR("无法获取到信息: ", err, info.Code)
 			cancel()
-			return
+			<-time.After(time.Second * 5)
+			continue
 		}
 		err = b.setHostAndToken(info)
 		if err != nil {
@@ -196,15 +198,18 @@ func (b *Bot) Connect() {
 				}
 			}
 		}(ctx)
+		b.IsConnecting = true
 		select {
 		case <-b.ReconnectChan:
-			b.WARNING("检测到重连信号")
+			b.IsConnecting = false
+			b.HIGHLIGHT("检测到重连信号")
 			cancel()
 			b.HIGHLIGHT("重新接续直播间")
 		case <-b.ExitChan:
-			b.WARNING("检测到退出信号")
+			b.IsConnecting = false
+			b.HIGHLIGHT("检测到退出信号")
 			cancel()
-			b.DEBUG("已经退出直播间")
+			b.HIGHLIGHT("已经退出直播间")
 			return
 		}
 	}

@@ -39,32 +39,40 @@ func main() {
 	go aggregate.Aggregation()
 	ctx := context.Background()
 	syncMap := sync.Map{}
-	var connectCount uint64
 	go func() {
 		for {
+			cnt := 0
 			select {
 			case <-time.After(time.Second * 10):
-				log.Println("Running len:", connectCount)
+				syncMap.Range(func(key, value interface{}) bool {
+					if bot, ok := value.(*zrrk.Bot); ok {
+						if bot.IsConnecting {
+							cnt += 1
+						}
+					}
+					return true
+				})
+				log.Println("Bot Count:", cnt)
 			}
 		}
 	}()
-	go taskSender(&syncMap, &connectCount, `SELECT room_id FROM livers WHERE live_status = 1`, time.Second/32)
-	go taskSender(&syncMap, &connectCount, `SELECT room_id FROM livers WHERE live_status = 0`, time.Second/4)
+	go taskSender(&syncMap, `SELECT room_id FROM livers WHERE live_status = 1`, time.Second/32)
+	go taskSender(&syncMap, `SELECT room_id FROM livers WHERE live_status = 0`, time.Second/4)
 	<-ctx.Done()
 }
 
-func taskSender(syncMap *sync.Map, connectCount *uint64, sql string, interval time.Duration) {
+func taskSender(syncMap *sync.Map, sql string, interval time.Duration) {
 	dsn := os.Getenv("BILIBILI_DSN")
 	db, _ := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	db.AutoMigrate(&gift.LiveRoomGift{})
 	giftPlugin := gift.New()
 	for {
-		createBotIfNotCreated(db, sql, syncMap, giftPlugin, connectCount, interval)
+		createBotIfNotCreated(db, sql, syncMap, giftPlugin, interval)
 		<-time.After(time.Second * 5)
 	}
 }
 
-func createBotIfNotCreated(db *gorm.DB, sql string, syncMap *sync.Map, giftPlugin *gift.GiftPlugin, connectCount *uint64, interval time.Duration) {
+func createBotIfNotCreated(db *gorm.DB, sql string, syncMap *sync.Map, giftPlugin *gift.GiftPlugin, interval time.Duration) {
 	ctx := context.Background()
 	ctxWithCancel, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -91,14 +99,12 @@ func createBotIfNotCreated(db *gorm.DB, sql string, syncMap *sync.Map, giftPlugi
 			bot := zrrk.Default(&m, &zrrk.BotConfig{
 				RoomID:     roomID,
 				StayMinHot: 200,
-				LogLevel:   zrrk.LogHighLight,
+				LogLevel:   zrrk.LogErr,
 			})
 			syncMap.Store(roomID, bot)
 			defer syncMap.Delete(roomID)
 			bot.AddPlugin(giftPlugin)
-			*connectCount++
 			bot.Connect()
-			*connectCount--
 		}(roomID)
 		<-time.After(interval)
 	}
