@@ -42,10 +42,12 @@ func main() {
 	deletedMap := sync.Map{}
 
 	go func() {
-		ticker := time.NewTicker(time.Second * 60 * 30)
+		ticker := time.NewTicker(time.Second * 60)
 		for range ticker.C {
 			deletedMap.Range((func(key, value interface{}) bool {
-				runningMap.Delete(key)
+				if time.Now().Unix() > value.(time.Time).Unix() {
+					runningMap.Delete(key)
+				}
 				return true
 			}))
 		}
@@ -68,25 +70,24 @@ func main() {
 			}
 		}
 	}()
-	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE guard_num > 50`, time.Second/64)
-	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE guard_num > 1 AND live_status = 1`, time.Second/32)
-	// go taskSender(&syncMap, `SELECT room_id FROM livers WHERE live_status = 1`, time.Second)
-	// go taskSender(&syncMap, `SELECT room_id FROM livers WHERE live_status = 0`, time.Second/4)
+	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE guard_num > 50`, time.Second/16, 0)
+	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE guard_num > 1 and guard_num < 50`, time.Second/32, 1)
+	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE live_status != 2`, time.Second, 1)
 	<-ctx.Done()
 }
 
-func taskSender(runningMap *sync.Map, deletedMap *sync.Map, sql string, interval time.Duration) {
+func taskSender(runningMap *sync.Map, deletedMap *sync.Map, sql string, interval time.Duration, stayMinHot int32) {
 	dsn := os.Getenv("BILIBILI_DSN")
 	db, _ := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	db.AutoMigrate(&gift.LiveRoomGift{})
 	giftPlugin := gift.New()
 	for {
-		createBotIfNotCreated(db, sql, runningMap, deletedMap, giftPlugin, interval)
+		createBotIfNotCreated(db, sql, runningMap, deletedMap, giftPlugin, interval, stayMinHot)
 		<-time.After(interval)
 	}
 }
 
-func createBotIfNotCreated(db *gorm.DB, sql string, runningMap *sync.Map, deletedMap *sync.Map, giftPlugin *gift.GiftPlugin, interval time.Duration) {
+func createBotIfNotCreated(db *gorm.DB, sql string, runningMap *sync.Map, deletedMap *sync.Map, giftPlugin *gift.GiftPlugin, interval time.Duration, stayMinHot int32) {
 	ctx := context.Background()
 	ctxWithCancel, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -115,14 +116,16 @@ func createBotIfNotCreated(db *gorm.DB, sql string, runningMap *sync.Map, delete
 			m := sync.Mutex{}
 			bot := zrrk.Default(&m, &zrrk.BotConfig{
 				RoomID:     roomID,
-				StayMinHot: 1,
+				StayMinHot: stayMinHot,
 				LogLevel:   zrrk.LogErr,
 			})
 			runningMap.Store(roomID, bot)
 			defer runningMap.Delete(roomID)
 			bot.AddPlugin(giftPlugin)
 			bot.Connect()
-			deletedMap.Store(roomID, true)
+			if stayMinHot != 0 {
+				deletedMap.Store(roomID, time.Now().Add(time.Second*60*10))
+			}
 		}(roomID)
 		<-time.After(interval)
 	}
