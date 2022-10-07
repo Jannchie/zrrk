@@ -132,28 +132,25 @@ func (b *Bot) Connect() {
 	b.DEBUG("ZRRK已开始运行")
 	b.DEBUG("尝试接续直播间")
 	for {
-		ctx, cancel := context.WithCancel(context.Background())
 		info, err := b.getDanmakuInfo()
 		if err != nil {
-			b.ERROR("无法获取到信息: ", err)
-			cancel()
+			b.ERROR("获取弹幕池失败: ", err)
 			<-time.After(time.Second * 5)
 			continue
 		}
 		err = b.setHostAndToken(info)
 		if err != nil {
 			b.ERROR("无法获取到信息: ", err)
-			cancel()
 			<-time.After(time.Second * 5)
 			continue
 		}
 		err = b.makeConnection()
 		if err != nil {
 			b.ERROR("建立该连接失败: ", err)
-			cancel()
 			<-time.After(time.Second * 5)
 			continue
 		}
+		ctx, cancel := context.WithCancel(context.Background())
 		go b.recieve(ctx)
 		go b.send(ctx)
 		err = b.sendFirstMsg()

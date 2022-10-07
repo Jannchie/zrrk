@@ -70,9 +70,9 @@ func main() {
 			}
 		}
 	}()
-	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE guard_num > 50`, time.Second/16, 0)
-	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE guard_num > 1 and guard_num < 50`, time.Second/32, 1)
-	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE live_status != 2`, time.Second, 1)
+	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE room_id != 0 AND guard_num > 100`, time.Second/16, 0)
+	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE room_id != 0 AND guard_num >= 1 AND guard_num < 100`, time.Second/10, 1)
+	go taskSender(&runningMap, &deletedMap, `SELECT room_id FROM livers WHERE room_id != 0 AND live_status = 1`, time.Second/5, 1)
 	<-ctx.Done()
 }
 
