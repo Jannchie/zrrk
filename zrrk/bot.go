@@ -307,6 +307,7 @@ func (b *Bot) recieve(ctx context.Context) {
 	b.DEBUG("接收协程已启动")
 	defer b.DEBUG("接收协程已退出")
 	ticker := time.NewTicker(time.Second * 60)
+	defer ticker.Stop()
 	var cnt int32
 	for {
 		select {
@@ -314,9 +315,11 @@ func (b *Bot) recieve(ctx context.Context) {
 			return
 		case <-ticker.C:
 			if cnt < b.StayMinHot {
-				b.ERROR("每分钟消息低于设定值")
+				b.ERROR("每分钟消息低于设定值: 当前", cnt)
 				b.ExitChan <- struct{}{}
 				return
+			} else {
+				b.INFO("一分钟内消息数", cnt)
 			}
 			cnt = 0
 		default:
