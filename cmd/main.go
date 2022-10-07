@@ -56,6 +56,7 @@ func main() {
 			}
 		}
 	}()
+	go taskSender(&syncMap, `SELECT room_id FROM livers WHERE guard_num > 50`, time.Second/64)
 	go taskSender(&syncMap, `SELECT room_id FROM livers WHERE live_status = 1`, time.Second/32)
 	go taskSender(&syncMap, `SELECT room_id FROM livers WHERE live_status = 0`, time.Second/4)
 	<-ctx.Done()
