@@ -163,6 +163,7 @@ func (b *Bot) Connect() {
 			<-time.After(time.Second * 5)
 			continue
 		}
+		b.HIGHLIGHT("成功接续直播间")
 		for i := range b.plugins {
 			descriptions := b.plugins[i].GetDescriptions()
 			b.descriptions = append(b.descriptions, descriptions...)
@@ -209,7 +210,7 @@ func (b *Bot) Connect() {
 			b.IsConnecting = false
 			b.INFO("检测到退出信号")
 			cancel()
-			b.INFO("已经退出直播间")
+			b.HIGHLIGHT("已经退出直播间")
 			return
 		}
 	}
@@ -315,11 +316,11 @@ func (b *Bot) recieve(ctx context.Context) {
 			return
 		case <-ticker.C:
 			if cnt < b.StayMinHot {
-				b.ERROR("每分钟消息低于设定值: 当前", cnt)
+				b.INFO("每分钟消息低于设定值: 当前", cnt)
 				b.ExitChan <- struct{}{}
 				return
 			} else {
-				b.INFO("一分钟内消息数", cnt)
+				b.INFO("一分钟内消息数: ", cnt)
 			}
 			cnt = 0
 		default:
@@ -371,9 +372,9 @@ func (b *Bot) recieve(ctx context.Context) {
 						case "COMBO_SEND":
 							b.DEBUG("进行了送礼连击")
 						case "LIVE":
-							b.HIGHLIGHT("现在已开始直播")
+							b.INFO("现在已开始直播")
 						case "PREPARING":
-							b.HIGHLIGHT("直播间正准备中")
+							b.INFO("直播间正准备中")
 						case "ONLINE_RANK_TOP3":
 							b.DEBUG("高能榜发生变动")
 						case "ROOM_CHANGE":
