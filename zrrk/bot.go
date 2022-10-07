@@ -339,7 +339,6 @@ func (b *Bot) recieve(ctx context.Context) {
 				b.ERROR("消息读取错误: ", err)
 				return
 			}
-			cnt += 1
 			switch head.OpeaT {
 			case 3:
 				data := rawBody[:4]
@@ -391,9 +390,11 @@ func (b *Bot) recieve(ctx context.Context) {
 						case "NOTICE_MSG":
 							// 跑马灯
 						case "DANMU_MSG":
+							cnt += 1
 							b.handleDanmuMsg(curBody)
 						case "SUPER_CHAT_MESSAGE":
 							// SC
+							cnt += 1
 							var msg SuperChatMessage
 							_ = json.Unmarshal(curBody, &msg)
 							b.handleSC(msg)
@@ -409,16 +410,19 @@ func (b *Bot) recieve(ctx context.Context) {
 							_ = json.Unmarshal(curBody, &msg)
 							b.INFO("观看人数有变动: ", msg.Data.TextLarge)
 						case "SEND_GIFT":
+							cnt += 1
 							var msg SendGift
 							_ = json.Unmarshal(curBody, &msg)
 							b.HandleSendGift(msg)
 						case "INTERACT_WORD":
+							cnt += 1
 							b.handleInteractWord(curBody)
 						case "POPULARITY_RED_POCKET_WINNER_LIST":
 							var msg PopularityRedPocketWinnerList
 							_ = json.Unmarshal(curBody, &msg)
 							b.handlePopularityRedPocketWinnerList(&msg)
 						case "COMMON_NOTICE_DANMAKU":
+							cnt += 1
 							var msg CommonNoticeDanmaku
 							_ = json.Unmarshal(curBody, &msg)
 							b.handleCommonNoticeDanmaku(&msg)

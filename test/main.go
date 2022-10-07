@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/jannchie/zrrk/zrrk"
-	"github.com/jannchie/zrrk/zrrk/plugin/gift"
 )
 
 func main() {
@@ -17,7 +16,7 @@ func main() {
 	}()
 	log.SetFlags(log.LstdFlags)
 	log.SetOutput(os.Stdout)
-	giftPlugin := gift.New()
+	// giftPlugin := gift.New()
 	syncMap := sync.Map{}
 
 	var roomID int
@@ -27,7 +26,7 @@ func main() {
 		StayMinHot: 0,
 		LogLevel:   zrrk.LogDebug,
 	})
-	bot.AddPlugin(giftPlugin)
+	// bot.AddPlugin(giftPlugin)
 	syncMap.Store(roomID, bot)
 	defer syncMap.Delete(roomID)
 	bot.Connect()
