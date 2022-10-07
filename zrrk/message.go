@@ -379,7 +379,6 @@ type UserToastMsg struct {
 	} `json:"data"`
 }
 
-
 type NoticeMsg struct {
 	Cmd  string `json:"cmd"`
 	ID   int    `json:"id"`
@@ -468,5 +467,12 @@ type WatchedChange struct {
 		Num       int    `json:"num"`
 		TextSmall string `json:"text_small"`
 		TextLarge string `json:"text_large"`
+	} `json:"data"`
+}
+
+type LikeInfoV3Update struct {
+	Cmd  string `json:"cmd"`
+	Data struct {
+		ClickCount int `json:"click_count"`
 	} `json:"data"`
 }

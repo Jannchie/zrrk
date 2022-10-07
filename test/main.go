@@ -23,7 +23,7 @@ func main() {
 	var roomID int
 	m := sync.Mutex{}
 	bot := zrrk.Default(&m, &zrrk.BotConfig{
-		RoomID:     545068,
+		RoomID:     876396,
 		StayMinHot: 0,
 		LogLevel:   zrrk.LogDebug,
 	})

@@ -306,10 +306,19 @@ func (b *Bot) doInterrupt() bool {
 func (b *Bot) recieve(ctx context.Context) {
 	b.DEBUG("接收协程已启动")
 	defer b.DEBUG("接收协程已退出")
+	ticker := time.NewTicker(time.Second * 60)
+	var cnt int32
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-ticker.C:
+			if cnt < b.StayMinHot {
+				b.ERROR("每分钟消息低于设定值")
+				b.ExitChan <- struct{}{}
+				return
+			}
+			cnt = 0
 		default:
 			_, message, err := b.conn.ReadMessage()
 			if err != nil {
@@ -327,16 +336,12 @@ func (b *Bot) recieve(ctx context.Context) {
 				b.ERROR("消息读取错误: ", err)
 				return
 			}
+			cnt += 1
 			switch head.OpeaT {
 			case 3:
 				data := rawBody[:4]
 				value := btoi32(data)
 				b.INFO("当前直播间热度: ", value)
-				if value < int32(b.StayMinHot) {
-					b.ERROR("热度低于设定值")
-					b.ExitChan <- struct{}{}
-					return
-				}
 			case 5:
 				if head.BodyV == WS_BODY_PROTOCOL_VERSION_DEFLATE {
 					body := ZlibParse(rawBody)
@@ -506,6 +511,11 @@ func (b *Bot) recieve(ctx context.Context) {
 							// {"cmd":"VIDEO_CONNECTION_MSG","data":{"channel_id":"72057594038846994","current_time":1661520034,"dmscore":4,"toast":"主播结束了视频连线"}}
 						case "WIDGET_WISH_LIST":
 							// {"cmd":"WIDGET_WISH_LIST","data":{"wish":[{"type":3,"gift_id":10003,"gift_name":"舰长","gift_img":"https://i0.hdslb.com/bfs/live/f1be2a2d5b227ce72641de1ad64bcc7f9e4111c3.png","gift_price":198000,"target_num":2,"current_num":0},{"type":2,"gift_id":31164,"gift_name":"粉丝团灯牌","gift_img":"https://s1.hdslb.com/bfs/live/cbed3bb0a894369b49ceaf0b5337b4491b75ac42.png","gift_price":1000,"target_num":88,"current_num":22},{"type":2,"gift_id":31075,"gift_name":"守护之翼","gift_img":"https://s1.hdslb.com/bfs/live/1d7d973972e70cad7e97478b3c8d20b0faafd0dc.png","gift_price":200000,"target_num":3,"current_num":3}],"wish_status":1,"sid":929,"wish_status_info":[{"wish_status_msg":"设定心愿","wish_status_img":"https://i0.hdslb.com/bfs/live/38f82bac32794e79776f7371269453652bd58a87.png","wish_status":0},{"wish_status_msg":"达成","wish_status_img":"https://i0.hdslb.com/bfs/live/1dae635924437239fc69e561a1a9467508521249.png","wish_status":2},{"wish_status_msg":"收集失败","wish_status_img":"https://i0.hdslb.com/bfs/live/3bbd30fdd32d085cc90e9ccd98c65a886dca9a8f.png","wish_status":3}],"wish_name":"心愿"}}
+						case "LIKE_INFO_V3_UPDATE":
+							//  {"cmd":"LIKE_INFO_V3_UPDATE","data":{"click_count":14159}}
+							// var msg LikeInfoV3Update
+							// _ = json.Unmarshal(curBody, &msg)
+							// b.INFO("观看人数有变动: ", curBody)
 						default:
 							log.Printf("收到未解析的命令: %s\n %s", cmd, curBody)
 						}

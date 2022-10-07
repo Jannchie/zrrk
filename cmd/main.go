@@ -99,7 +99,7 @@ func createBotIfNotCreated(db *gorm.DB, sql string, syncMap *sync.Map, giftPlugi
 			m := sync.Mutex{}
 			bot := zrrk.Default(&m, &zrrk.BotConfig{
 				RoomID:     roomID,
-				StayMinHot: 200,
+				StayMinHot: 0,
 				LogLevel:   zrrk.LogErr,
 			})
 			syncMap.Store(roomID, bot)
