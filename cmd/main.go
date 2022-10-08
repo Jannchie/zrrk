@@ -104,7 +104,9 @@ func createBotIfNotCreated(db *gorm.DB, sql string, runningMap *sync.Map, giftPl
 				LogLevel:   zrrk.LogErr,
 			})
 			runningMap.Store(roomID, bot)
-			defer runningMap.Delete(roomID)
+			defer func() {
+				runningMap.Delete(roomID)
+			}()
 			bot.AddPlugin(giftPlugin)
 			bot.Connect()
 		}(roomID)

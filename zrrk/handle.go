@@ -76,11 +76,7 @@ func (b *Bot) HandleSendGift(msg SendGift) {
 	if msg.Data.CoinType == "silver" && (msg.Data.Price > 0) {
 		b.GIFT(fmt.Sprintf("%s：%s了 %d 个 %s, [SILVER] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Num*msg.Data.Price))
 	} else if (msg.Data.CoinType == "gold") && (msg.Data.Price > 0) {
-		if msg.Data.Price > 100000 {
-			b.HIGHLIGHT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %.1fRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, float64(msg.Data.Num*msg.Data.Price)/1000))
-		} else {
-			b.GIFT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %.1fRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, float64(msg.Data.Num*msg.Data.Price)/1000))
-		}
+		b.HIGHLIGHT(fmt.Sprintf("%s：%s了 %d 个 %s, [ GOLD ] 价值: %.1fRMB", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, float64(msg.Data.Num*msg.Data.Price)/1000))
 	} else {
 		b.DEBUG(fmt.Sprintf("%s：%s了 %d 个 %s, [OTHERS] 价值: %d", ud.String(), msg.Data.Action, msg.Data.Num, msg.Data.GiftName, msg.Data.Num*msg.Data.Price))
 	}
