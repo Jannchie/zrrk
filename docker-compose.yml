@@ -12,9 +12,9 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.05"
-          memory: "50M"
-      replicas: 6
+          cpus: "0.2"
+          memory: "200M"
+      replicas: 1
     image: dperson/torproxy
     expose:
       - 9050
